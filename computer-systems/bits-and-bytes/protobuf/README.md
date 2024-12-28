@@ -7,24 +7,31 @@ with stdin and stdout.)
 
 ## Usage
 
-```
+This assumes that you have used `git clone` to pull this code down locally, and that you're in the same directory as this
+README file.
+
+Decode hex `9601` to the unsigned integer `150`:
+```bash
 echo 9601 | cargo run --bin decode_varint
 ```
 
-```
+Encode the unsigned integer `150` to hex `9601`:
+```bash
 echo 150 | cargo run --bin encode_varint
 ```
 
-```
+Roundtrip encode and decode the unsigned integer `256` back to itself:
+```bash
 echo 256 | cargo run --bin encode_varint | cargo run --bin decode_varint
 ```
 
-```
+Roundtrip decode and encode hex `ff0f` back to itself:
+```bash
 echo ff0f | cargo run --bin decode_varint | cargo run --bin encode_varint
 ```
 
 ## Running tests locally
 
-```
+```bash
 cargo test
 ```
