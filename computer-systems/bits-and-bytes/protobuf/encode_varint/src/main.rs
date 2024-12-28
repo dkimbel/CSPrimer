@@ -10,7 +10,7 @@ fn main() {
         .read_line(&mut unparsed_n)
         .expect(INPUT_ERROR_MSG);
     let n = unparsed_n.trim().parse::<u64>().expect(INPUT_ERROR_MSG);
-    let mut bytes: Vec<u8> = vec![0; varint::MAX_NUM_ENCODABLE_BYTES];
+    let mut bytes: Vec<u8> = vec![0; varint::MAX_NUM_ENCODABLE_BYTES_FOR_U64];
 
     let num_bytes = varint::encode(n, &mut bytes);
 
