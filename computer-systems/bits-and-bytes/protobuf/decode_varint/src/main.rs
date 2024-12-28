@@ -11,6 +11,6 @@ fn main() {
         .expect(INPUT_ERROR_MSG);
     let bytes = hex::decode(unparsed_bytes.trim()).expect(INPUT_ERROR_MSG);
 
-    let n = varint::decode(&bytes);
+    let n = varint::decode_v2(&bytes);
     println!("{n}");
 }
