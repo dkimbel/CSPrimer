@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use varint::{decode_v1, decode_v2};
+use varint;
 
 fn bench_decode(c: &mut Criterion) {
     let mut group = c.benchmark_group("decode");
@@ -14,15 +14,9 @@ fn bench_decode(c: &mut Criterion) {
 
     for input in inputs {
         group.bench_with_input(
-            BenchmarkId::new("v1", input[0]), // Using first byte as ID
+            BenchmarkId::new("current", input[0]), // Using first byte as ID
             &input,
-            |b, input| b.iter(|| decode_v1(input)),
-        );
-
-        group.bench_with_input(
-            BenchmarkId::new("v2", input[0]), // Using first byte as ID
-            &input,
-            |b, input| b.iter(|| decode_v2(input)),
+            |b, input| b.iter(|| varint::decode(input)),
         );
     }
     group.finish();
