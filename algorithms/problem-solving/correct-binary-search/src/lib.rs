@@ -1,35 +1,21 @@
-use std::cmp;
 use std::cmp::Ordering;
 
 /// Search for the given element in the given sorted slice. Return its index if found.
 pub fn binary_search(xs: &[i32], x: i32) -> Option<usize> {
-    if xs.is_empty() {
-        return None;
-    }
+    let mut start_i_inclusive: usize = 0;
+    let mut end_i_exclusive: usize = xs.len();
 
-    let mut start_i: usize = 0;
-    let mut end_i: usize = xs.len() - 1;
-
-    while start_i != end_i {
-        // NOTE: when picking our midway point between `start` and `end`, we naturally round
-        // down -- so if there is an even number of elements, we will always choose a midway
-        // point slightly closer to `start`.
-        let midway_i = (start_i + end_i) / 2;
+    while start_i_inclusive < end_i_exclusive {
+        let midway_i = (start_i_inclusive + end_i_exclusive) / 2;
 
         match x.cmp(&xs[midway_i]) {
             Ordering::Equal => return Some(midway_i),
-            // Respect the "end_i >= start_i" invariant
-            Ordering::Less => end_i = cmp::max(midway_i - 1, start_i),
-            // Respect the "start_i <= end_i" invariant
-            Ordering::Greater => start_i = cmp::min(midway_i + 1, end_i),
+            Ordering::Less => end_i_exclusive = midway_i,
+            Ordering::Greater => start_i_inclusive = midway_i + 1,
         }
     }
 
-    if xs[start_i] == x {
-        return Some(start_i);
-    } else {
-        return None;
-    }
+    return None;
 }
 
 #[cfg(test)]
