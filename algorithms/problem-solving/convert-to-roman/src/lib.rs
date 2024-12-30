@@ -4,7 +4,7 @@ struct Numeral {
     value: u16,
 }
 
-const NUMERALS_BY_VALUE_DECREASING: [Numeral; 12] = [
+const NUMERALS_BY_VALUE_DECREASING: [Numeral; 13] = [
     Numeral { main_char: 'M', subtractive_char: None, value: 1000 },
     Numeral { main_char: 'M', subtractive_char: Some('C'), value: 900 },
     Numeral { main_char: 'D', subtractive_char: None, value: 500 },
@@ -14,6 +14,7 @@ const NUMERALS_BY_VALUE_DECREASING: [Numeral; 12] = [
     Numeral { main_char: 'L', subtractive_char: None, value: 50 },
     Numeral { main_char: 'L', subtractive_char: Some('X'), value: 40 },
     Numeral { main_char: 'X', subtractive_char: None, value: 10 },
+    Numeral { main_char: 'X', subtractive_char: Some('I'), value: 9 },
     Numeral { main_char: 'V', subtractive_char: None, value: 5 },
     Numeral { main_char: 'V', subtractive_char: Some('I'), value: 4 },
     Numeral { main_char: 'I', subtractive_char: None, value: 1 },
@@ -62,6 +63,12 @@ mod tests {
     fn test_44() {
         let result = convert_to_roman(44);
         assert_eq!(result, "XLIV");
+    }
+
+    #[test]
+    fn test_89() {
+        let result = convert_to_roman(89);
+        assert_eq!(result, "LXXXIX");
     }
 
     #[test]
