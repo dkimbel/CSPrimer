@@ -44,7 +44,7 @@ fn merge_pair_of_sorted_sublists(xs: &[i32], ys: &[i32], target: &mut [i32]) {
     let mut y_i: usize = 0;
     let mut target_i: usize = 0;
 
-    while x_i < xs.len() || y_i < ys.len() {
+    while target_i < target.len() {
         let maybe_x = xs.get(x_i);
         let maybe_y = ys.get(y_i);
 
