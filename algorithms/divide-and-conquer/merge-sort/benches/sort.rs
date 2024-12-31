@@ -1,5 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use merge_sort::{merge_sort, naive_merge_sort};
+use quick_sort::quick_sort;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 
@@ -13,7 +14,7 @@ fn bench_sorts(c: &mut Criterion) {
     let mut rng = thread_rng();
     data.shuffle(&mut rng);
 
-    // Convert to slice once for both tests
+    // Convert to slice once for all tests
     let data_slice = data.as_slice();
 
     group.bench_with_input(
@@ -26,6 +27,17 @@ fn bench_sorts(c: &mut Criterion) {
         BenchmarkId::new("slow_merge_sort", "1M random"),
         &data_slice,
         |b, data| b.iter(|| naive_merge_sort(data)),
+    );
+
+    group.bench_with_input(
+        BenchmarkId::new("quick_sort", "1M random"),
+        &data_slice,
+        |b, data| {
+            b.iter_with_setup(
+                || data.to_vec(), // Create fresh clone for each iteration
+                |mut arr| quick_sort(&mut arr),
+            )
+        },
     );
 
     group.finish();
