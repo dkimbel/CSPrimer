@@ -1,11 +1,14 @@
 use std::cmp;
 
-/// Sort given list using the classic merge sort "divide and conquer" algorithm.
+/// Return a new list sorted using the classic merge sort "divide and conquer" algorithm.
 /// This is a somewhat advanced implementation, which does NOT use recursion or allocate
 /// many vectors on the heap. It only allocates twice, with each of those vectors having
 /// the same length as the input (and never needing to be resized).
-pub fn merge_sort(ns: &[i32]) -> Vec<i32> {
-    let (mut source, mut target) = (ns.to_vec(), vec![0; ns.len()]);
+/// The type signature is a bit fancy to allow many different types to be sorted.
+/// (Critically, it must be possible to compare values within our list -- so the list's
+/// items must implement Rust's 'Ord' trait.)
+pub fn merge_sort<T: Ord + Clone + Copy>(ns: &[T]) -> Vec<T> {
+    let (mut source, mut target) = (ns.to_vec(), ns.to_vec());
     let mut max_sublist_size: usize = 1;
 
     // On our final iteration, max_sublist_size will be at LEAST as long as our input
@@ -22,7 +25,11 @@ pub fn merge_sort(ns: &[i32]) -> Vec<i32> {
 
 /// Slice up the monolithic 'source' vector into smaller pieces that can be merged, with
 /// each merge targeting a mutable slice of the monolithic 'target' vector.
-fn merge_all_sorted_sublists(source: &[i32], target: &mut [i32], max_sublist_size: usize) {
+fn merge_all_sorted_sublists<T: Ord + Copy>(
+    source: &[T],
+    target: &mut [T],
+    max_sublist_size: usize,
+) {
     let mut start_i: usize = 0;
 
     while start_i < source.len() {
@@ -39,7 +46,7 @@ fn merge_all_sorted_sublists(source: &[i32], target: &mut [i32], max_sublist_siz
 
 /// Merge the pair of pre-sorted sublists, writing the merged collection to the mutable
 /// 'target' slice.
-fn merge_pair_of_sorted_sublists(xs: &[i32], ys: &[i32], target: &mut [i32]) {
+fn merge_pair_of_sorted_sublists<T: Ord + Copy>(xs: &[T], ys: &[T], target: &mut [T]) {
     let mut x_i: usize = 0;
     let mut y_i: usize = 0;
     let mut target_i: usize = 0;
