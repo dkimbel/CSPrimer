@@ -49,9 +49,8 @@ fn merge_all_sorted_sublists<T: Ord + Copy>(
 fn merge_pair_of_sorted_sublists<T: Ord + Copy>(xs: &[T], ys: &[T], target: &mut [T]) {
     let mut x_i: usize = 0;
     let mut y_i: usize = 0;
-    let mut target_i: usize = 0;
 
-    while target_i < target.len() {
+    for target_i in 0..target.len() {
         let maybe_x = xs.get(x_i);
         let maybe_y = ys.get(y_i);
 
@@ -75,6 +74,5 @@ fn merge_pair_of_sorted_sublists<T: Ord + Copy>(xs: &[T], ys: &[T], target: &mut
             }
             (None, None) => unreachable!("Exhausted both sublists prematurely during merge"),
         }
-        target_i += 1;
     }
 }
