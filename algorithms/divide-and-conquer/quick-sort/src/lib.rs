@@ -11,9 +11,17 @@ pub fn quick_sort<T: Ord>(input: &mut [T]) {
     // m is the maximum index whose value is less than or equal to our pivot value
     let mut m: usize = 0;
 
+    // Optimization to prevent On^2 performance on pre-sorted lists: swap the first
+    // element (our pivot!) with the middle element before partitioning. That way we
+    // actually split the list into two roughly even parts every time, meaning we
+    // only have to partition our full list log-base-2-n times instead of n times.
+    input.swap(t, input.len() / 2);
+
     // no need to check the pivot value against itself, so start at i=1
     for i in 1..input.len() {
         if &input[i] <= &input[t] {
+            // in early iterations we might be swapping a value with itself, but that
+            // seems to be fine
             input.swap(i, m + 1);
             m += 1;
         }
@@ -23,9 +31,9 @@ pub fn quick_sort<T: Ord>(input: &mut [T]) {
     // are less than or equal to it
     input.swap(t, m);
 
-    // recursively sort everything to the left of where we put our pivot element
+    // recursively sort everything to the left of where we moved our pivot element
     quick_sort(&mut input[0..m]);
-    // recursively sort everything to the RIGHT of where we put our pivot element
+    // recursively sort everything to the RIGHT of where we moved our pivot element
     let input_len = input.len();
     let safe_min_right_i = std::cmp::min(m + 1, input_len - 1);
     quick_sort(&mut input[safe_min_right_i..input_len]);
