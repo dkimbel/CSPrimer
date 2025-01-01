@@ -9,4 +9,4 @@ Awkwardly, my original 'sublinear' version is the slowest by far, at least when 
 - Linear recursive: ~9.6ns
 - 'Fast' sublinear  iterative: ~3ns
 - 'Fast' sublinear recursive: ~3ns
-- Standard library: ~2.7ns
+- Standard library: ~2.5ns to ~2.7ns

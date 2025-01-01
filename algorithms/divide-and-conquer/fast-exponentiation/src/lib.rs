@@ -26,7 +26,7 @@ pub fn raise_to_power_linear_iterative(base: u64, mut power: u32) -> u64 {
     result
 }
 
-/// Calculate an exponent in linear time by repeatedly mulitpying the base
+/// Calculate an exponent in linear time by repeatedly multiplying the base
 /// by itself, recursively.
 pub fn raise_to_power_linear_recursive(base: u64, power: u32) -> u64 {
     if power == 0 {
@@ -61,7 +61,6 @@ pub fn raise_to_power_fast_iterative(mut base: u64, mut power: u32) -> u64 {
 pub fn raise_to_power_fast_recursive(base: u64, power: u32) -> u64 {
     match power {
         0 => 1,
-        1 => base,
         n if n & 1 == 1 => base * raise_to_power_fast_recursive(base, power - 1),
         // 'power is even' case, where we halve the power and square the base
         _ => raise_to_power_fast_recursive(base * base, power >> 1),
