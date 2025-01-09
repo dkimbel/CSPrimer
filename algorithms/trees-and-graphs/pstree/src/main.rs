@@ -6,10 +6,49 @@ use std::sync::OnceLock;
 // Minor optimization to only compile our regex one time throughout life of program
 static PROCESS_LINE_REGEX: OnceLock<Regex> = OnceLock::new();
 
-enum ChildStatus {
-    NotChild,
-    MiddleChild,
+/// Chars that will be printed to the screen to reflect the structure of the tree.
+/// R = Right, L = Left, T = Top, B = Bottom. So e.g. RL is a dash-like char that
+/// extends from left to right.
+enum TreeChar {
+    RL,
+    RBL,
+    TRB,
+    TB,
+    TR,
+}
+
+impl TreeChar {
+    fn to_char(&self) -> char {
+        use TreeChar::*;
+        match self {
+            RL => '─',
+            RBL => '┬',
+            TRB => '├',
+            TB => '│',
+            TR => '└',
+        }
+    }
+}
+
+// Any given Process's ChildPosition is that process's position relative to its own immediate
+// parent. So if Process id 10 is the third of four children of Process id 2, then Process id
+// 10 is a MiddleChild. Process id 10 may or may not have children of its own -- that isn't
+// relevant here.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ChildPosition {
+    MiddleChild, // includes first child
     LastChild,
+}
+
+// Formulated to "make illegal state unrepresentable" -- there is no way to represent any
+// given Process as not being a child, yet having parents.
+enum ChildStatus<'a> {
+    NotChild,
+    IsChild {
+        position: ChildPosition,
+        // if this is empty, then the relevant process only has one parent: the root.
+        non_root_parent_child_positions: &'a Vec<ChildPosition>,
+    },
 }
 
 struct Process {
@@ -18,18 +57,16 @@ struct Process {
     args: String,
 }
 
-struct ProcessPrintArgs<'a> {
+struct ProcessStackNode<'a> {
     process: &'a Process,
-    indentation_level: usize,
-    // Describes the status of THIS process. If this process has no children itself
-    // and is the last child of its parent, it will have ChildStatus::LastChild.
-    child_status: ChildStatus,
+    // this will be None for the root node
+    maybe_child_position: Option<ChildPosition>,
 }
 
 impl Process {
     /// Create a Process from a line outputted by a `ps` command using a particular format.
     /// Return a tuple of the new Process and its parent PID. (Keeping the parent PID
-    /// separate from the struct is just a slight optimization to avoid storing many copies
+    /// separate from the struct is just a slight optimization to avoid storing extra copies
     /// of it unnecessarily, when we put the struct into a map with parent PID as the key.)
     fn from_ps_line(line: &str) -> (Self, u64) {
         let re = PROCESS_LINE_REGEX
@@ -57,18 +94,70 @@ impl Process {
 
     /// Print the process to the screen, with appropriate indentation and tree-related
     /// characters.
-    fn print(
-        &self,
-        indentation_level: usize,
-        max_num_pid_chars: usize,
-        is_parent: bool,
-        child_status: ChildStatus,
-    ) {
-        let mut s = " ".repeat(indentation_level * 4);
+    fn print(&self, max_num_pid_chars: usize, is_parent: bool, child_status: ChildStatus) {
+        let tree_chars = self.get_tree_chars(is_parent, child_status);
         let Self { pid, user, args } = self;
-        s.push_str(&format!("{pid:05}"));
-        println!("{}", s);
+        println!("{tree_chars} {pid:0max_num_pid_chars$} {user} {args}");
     }
+
+    fn get_tree_chars(&self, is_parent: bool, child_status: ChildStatus) -> String {
+        if indentation_level == 0 {
+            let middle_tree_char = if is_parent {
+                TreeChar::RBL
+            } else {
+                TreeChar::RL
+            };
+            return [TreeChar::RL, middle_tree_char, TreeChar::RL]
+                .iter()
+                .map(|tc| tc.to_char())
+                .collect::<String>();
+        }
+
+        let mut s = String::from(" ");
+
+        // TODO first, based on indentation level, add some combination of space and '|'
+        //   this comes down to whether the parent(s) were middle children or not, which is tough.
+        //     - instead of passing in a numeric indentation level, pass in a list of parents' childstates.
+        //       this can ignore root, and can be an immutable reference to a vec we otherwise mutate/clear.
+        // TODO then, upon reaching final indentation, add:
+        //   - TRB or TR, based on middle vs last child
+        //   - a single RL
+        //   - RL or RBL, based on whether isParent
+        //   - a final RL
+
+        let tree_char = match child_status {
+            ChildStatus::NotChild if is_parent => TreeChar::RBL,
+            ChildStatus::NotChild => TreeChar::RL,
+            ChildStatus::MiddleChild if indentation_level == 1 => TreeChar::TRB,
+            ChildStatus::MiddleChild => TreeChar::TB,
+            ChildStatus::LastChild => TreeChar::TR,
+        };
+        s.push(tree_char.to_char());
+        return String::from("");
+    }
+    // TODO implement tree char printing logic
+    // TODO was `$` after max_num_pid_chars absolutely necessary?
+    // TODO Colorize lines? Primary colors and orange, perhaps?
+    // TODO Try implementing 'only show lines that match specific text'
+    //   this could be done via a first-pass search through the tree where we use a single mutable vec
+    //   to track which parents we're currently searching under. when we find a hit, we "merge" our current
+    //   path into a parent-pid-to-process dict representing the tree so far. For extra optimization, do the
+    //   'merge' in a batch at the end of the current list of children we're working through (maybe detected
+    //   by indentation level dropping?), instead of immediately on finding a match.
+    // TODO Note how I could have done printing in the same pass as parsing, since inputs were pre-sorted.
+    //   But, keeping the processes separate will let us implement 'only show lines that show text' without
+    //   disrupting the codebase much.
+    // TODO Maybe find a way to get wider text length as output from ps?
+    // TODO Align by username length within a level/batch?
+    // TODO Any refactor / code cleanup?
+    //   - try to be guided by common arguments not having to be passed to functions, because they belong
+    //     to a relevant struct already?
+    //   - maybe have a ProcessPrinter that keeps track of max_num_process_chars for us?
+    //   - generally split out parsing of the full process list into its own function / struct?
+    // TODO add/update comments? add missing docstrings?
+    // TODO Add README featuring a screenshot
+    // TODO Consider `hyperfine` for benchmarking vs pstree?
+    // TODO Submit, mentioning screenshot in README or direct-linking it
 }
 
 fn main() {
@@ -85,14 +174,10 @@ fn main() {
     let mut parent_pids_to_child_processes: HashMap<u64, Vec<Process>> = HashMap::new();
     let mut max_pid = 0;
 
-    // NOTE: ps gives us processes sorted by process ID, no further sorting is necessary.
-    // We also don't need to do any special work to figure out which process is the root:
-    // besides definitely being the first line outputted by `ps`, it will have its parent
-    // PID set to zero.
+    // We use skip(1) to skip the first line, which just contains headers.
     for ps_line in ps_stdout.lines().skip(1) {
-        // We used skip(1) above to skip the first line (just headers)
         let (process, parent_pid) = Process::from_ps_line(ps_line);
-        // technically we don't HAVE to call `max`, lines are already sorted by PID
+        // Technically we don't HAVE to call `max`, lines are already sorted by PID.
         max_pid = std::cmp::max(max_pid, process.pid);
 
         parent_pids_to_child_processes
@@ -101,7 +186,7 @@ fn main() {
             .push(process);
     }
 
-    // We want to left-pad every printed PID with zeroes until it matches the length
+    // We'll want to left-pad every printed PID with zeroes until it matches the length
     // of the largest PID.
     let max_num_pid_chars = format!("{max_pid}").len();
 
@@ -109,44 +194,59 @@ fn main() {
     let root: &Process = &parent_pids_to_child_processes.get(&0).unwrap()[0];
 
     // Use a stack to effectively do depth-first search through our tree, printing
-    // every process as we go. Besides each individual process, we need to track
-    // its level of indentation and whether it is a 'middle' versus 'last' child
-    // (this affects which tree-related chars we print to the screen).
-    let mut stack: Vec<ProcessPrintArgs> = vec![ProcessPrintArgs {
+    // every process as we go. To print out our tree, we must also track:
+    // - whether the process is a middle or last child of its parent
+    // - whether each of the process's parents was a middle or last child
+    let mut stack: Vec<ProcessStackNode> = vec![ProcessStackNode {
         process: root,
-        indentation_level: 0,
-        child_status: ChildStatus::NotChild, // root is not a child
+        maybe_child_position: None, // root is not a child
     }];
 
-    while let Some(ProcessPrintArgs {
+    let mut non_root_parent_child_positions: Vec<ChildPosition> = Vec::new();
+
+    while let Some(ProcessStackNode {
         process,
-        indentation_level,
-        child_status,
+        maybe_child_position,
     }) = stack.pop()
     {
         let maybe_children = parent_pids_to_child_processes.get(&process.pid);
         let is_parent = maybe_children.is_some_and(|children| !children.is_empty());
 
-        process.print(
-            indentation_level,
-            max_num_pid_chars,
-            is_parent,
-            child_status,
-        );
+        let child_status = if let Some(child_position) = maybe_child_position {
+            ChildStatus::IsChild {
+                position: child_position,
+                non_root_parent_child_positions: &non_root_parent_child_positions,
+            }
+        } else {
+            ChildStatus::NotChild
+        };
+        process.print(max_num_pid_chars, is_parent, child_status);
 
-        // push all of this process's children onto the stack, in reverse order so
-        // that the first child will be popped first
+        // potentially pop this node's parent off the 'parents' stack
+        if maybe_child_position == Some(ChildPosition::LastChild)
+            && non_root_parent_child_positions.len() > 0
+        {
+            non_root_parent_child_positions.pop();
+        }
+
         if let Some(children) = maybe_children {
+            // Since this process has children, push it onto the 'parents' stack
+            // (as long as it isn't the root process)
+            if let Some(child_position) = maybe_child_position {
+                non_root_parent_child_positions.push(child_position);
+            }
+
+            // Push all of this process's children onto the stack, in reverse order
+            // so that the first child will be popped first
             for (rev_i, child_process) in children.iter().rev().enumerate() {
-                let childs_child_status = if rev_i == 0 {
-                    ChildStatus::LastChild
+                let childs_child_position = if rev_i == 0 {
+                    ChildPosition::LastChild
                 } else {
-                    ChildStatus::MiddleChild
+                    ChildPosition::MiddleChild
                 };
-                stack.push(ProcessPrintArgs {
+                stack.push(ProcessStackNode {
                     process: child_process,
-                    indentation_level: indentation_level + 1,
-                    child_status: childs_child_status,
+                    maybe_child_position: Some(childs_child_position),
                 })
             }
         }
