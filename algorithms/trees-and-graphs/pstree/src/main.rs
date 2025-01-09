@@ -34,7 +34,7 @@ impl TreeChar {
 // parent. So if Process id 10 is the third of four children of Process id 2, then Process id
 // 10 is a MiddleChild. Process id 10 may or may not have children of its own -- that isn't
 // relevant here.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq)]
 enum ChildPosition {
     MiddleChild, // includes first child
     LastChild,
@@ -59,8 +59,7 @@ struct Process {
 
 struct ProcessStackNode<'a> {
     process: &'a Process,
-    // this will be None for the root node
-    maybe_child_position: Option<ChildPosition>,
+    maybe_child_position: Option<ChildPosition>, // None for root node
 }
 
 impl Process {
@@ -97,46 +96,66 @@ impl Process {
     fn print(&self, max_num_pid_chars: usize, is_parent: bool, child_status: ChildStatus) {
         let tree_chars = self.get_tree_chars(is_parent, child_status);
         let Self { pid, user, args } = self;
-        println!("{tree_chars} {pid:0max_num_pid_chars$} {user} {args}");
+        println!("{tree_chars} {pid:0max_num_pid_chars$} {user}");
     }
 
     fn get_tree_chars(&self, is_parent: bool, child_status: ChildStatus) -> String {
-        if indentation_level == 0 {
-            let middle_tree_char = if is_parent {
-                TreeChar::RBL
-            } else {
-                TreeChar::RL
-            };
-            return [TreeChar::RL, middle_tree_char, TreeChar::RL]
-                .iter()
-                .map(|tc| tc.to_char())
-                .collect::<String>();
+        match child_status {
+            ChildStatus::NotChild => {
+                let middle_tree_char = if is_parent {
+                    TreeChar::RBL
+                } else {
+                    TreeChar::RL
+                };
+                return [TreeChar::RL, middle_tree_char, TreeChar::RL]
+                    .iter()
+                    .map(|tc| tc.to_char())
+                    .collect::<String>();
+            }
+            ChildStatus::IsChild {
+                position,
+                non_root_parent_child_positions,
+            } => {
+                let mut s = String::from(' ');
+
+                // We need to indent this Process further based on how many parents
+                // it has. We might also need to draw some top-to-bottom lines on
+                // behalf of those parents, to reach their further-down children.
+                for parent_child_position in non_root_parent_child_positions {
+                    let position_char = match parent_child_position {
+                        ChildPosition::MiddleChild => TreeChar::TB.to_char(),
+                        ChildPosition::LastChild => ' ',
+                    };
+                    s.push(position_char);
+                    s.push(' ');
+                }
+
+                // add the final tree characters, which may look like the
+                // following example (among others): └─┬─
+                let position_tree_char = match position {
+                    ChildPosition::MiddleChild => TreeChar::TRB,
+                    ChildPosition::LastChild => TreeChar::TR,
+                };
+                let branch_to_children_tree_char = match is_parent {
+                    true => TreeChar::RBL,
+                    false => TreeChar::RL,
+                };
+                let final_chars = [
+                    position_tree_char,
+                    TreeChar::RL,
+                    branch_to_children_tree_char,
+                    TreeChar::RL,
+                ]
+                .map(|tc| tc.to_char());
+                s.extend(final_chars);
+                return s;
+            }
         }
-
-        let mut s = String::from(" ");
-
-        // TODO first, based on indentation level, add some combination of space and '|'
-        //   this comes down to whether the parent(s) were middle children or not, which is tough.
-        //     - instead of passing in a numeric indentation level, pass in a list of parents' childstates.
-        //       this can ignore root, and can be an immutable reference to a vec we otherwise mutate/clear.
-        // TODO then, upon reaching final indentation, add:
-        //   - TRB or TR, based on middle vs last child
-        //   - a single RL
-        //   - RL or RBL, based on whether isParent
-        //   - a final RL
-
-        let tree_char = match child_status {
-            ChildStatus::NotChild if is_parent => TreeChar::RBL,
-            ChildStatus::NotChild => TreeChar::RL,
-            ChildStatus::MiddleChild if indentation_level == 1 => TreeChar::TRB,
-            ChildStatus::MiddleChild => TreeChar::TB,
-            ChildStatus::LastChild => TreeChar::TR,
-        };
-        s.push(tree_char.to_char());
-        return String::from("");
     }
-    // TODO implement tree char printing logic
-    // TODO was `$` after max_num_pid_chars absolutely necessary?
+    // TODO fix not-quite-right tree char printing logic
+    //   would it help if I dbg-printed the full-tree dict of ppid to processes, for reference?
+    // TODO figure out how to liit the number of chars in 'args' to what the terminal will allow, then
+    //   re-introduce args to my output
     // TODO Colorize lines? Primary colors and orange, perhaps?
     // TODO Try implementing 'only show lines that match specific text'
     //   this could be done via a first-pass search through the tree where we use a single mutable vec
