@@ -101,9 +101,18 @@ impl Process {
         let maybe_children = parent_pids_to_child_processes.get(&self.pid);
         let is_parent = maybe_children.is_some_and(|children| !children.is_empty());
 
-        &self.print(max_num_pid_chars, is_parent, child_status);
+        // do the actual printing
+        let tree_chars = self.get_tree_chars(is_parent, child_status);
+        let Self { pid, user, args } = self;
+        println!("{tree_chars} {pid:0max_num_pid_chars$} {user}");
 
+        // recursively print all children of the current process
         if let Some(children) = maybe_children {
+            // Each process must know the 'child position' of ALL of its parents, to know
+            // whether to print whitespace/indentation (parent was a last child) or a
+            // top-to-bottom char (parent was a middle child, and so has more processes
+            // below it at the same indentation level). To support this need, maintain
+            // a running list of parent 'child positions'.
             let non_root_parent_child_positions: Vec<ChildPosition> = match child_status {
                 ChildStatus::NotChild => Vec::new(),
                 ChildStatus::IsChild {
@@ -117,6 +126,8 @@ impl Process {
             };
 
             for (i, child_process) in children.iter().enumerate() {
+                // The child needs to know whether it is itself a 'middle' or 'last' child;
+                // this affects the tree chars it prints.
                 let childs_child_position = if i + 1 == children.len() {
                     ChildPosition::LastChild
                 } else {
@@ -134,14 +145,6 @@ impl Process {
                 );
             }
         }
-    }
-
-    /// Print the process to the screen, with appropriate indentation and tree-related
-    /// characters.
-    fn print(&self, max_num_pid_chars: usize, is_parent: bool, child_status: ChildStatus) {
-        let tree_chars = self.get_tree_chars(is_parent, child_status);
-        let Self { pid, user, args } = self;
-        println!("{tree_chars} {pid:0max_num_pid_chars$} {user}");
     }
 
     fn get_tree_chars(&self, is_parent: bool, child_status: ChildStatus) -> String {
@@ -165,7 +168,7 @@ impl Process {
 
                 // We need to indent this Process further based on how many parents
                 // it has. We might also need to draw some top-to-bottom lines on
-                // behalf of those parents, to reach their further-down children.
+                // behalf of those parents, to reach their further-down siblings.
                 for parent_child_position in non_root_parent_child_positions {
                     let position_char = match parent_child_position {
                         ChildPosition::MiddleChild => TreeChar::TB.to_char(),
@@ -197,7 +200,6 @@ impl Process {
             }
         }
     }
-    // TODO clean up 'recursive' vs 'non-recursive' print
     // TODO figure out how to limit the number of chars in 'args' to what the terminal will allow, then
     //   re-introduce args to my output
     // TODO Colorize lines? Primary colors and orange, perhaps?
