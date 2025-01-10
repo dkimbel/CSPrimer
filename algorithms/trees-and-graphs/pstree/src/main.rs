@@ -42,6 +42,7 @@ enum ChildPosition {
 
 // Formulated to "make illegal state unrepresentable" -- there is no way to represent any
 // given Process as not being a child, yet having parents.
+#[derive(Clone, Copy)]
 enum ChildStatus<'a> {
     NotChild,
     IsChild {
@@ -89,6 +90,50 @@ impl Process {
             },
             parent_pid,
         )
+    }
+
+    fn print_recursive(
+        &self,
+        max_num_pid_chars: usize,
+        child_status: ChildStatus,
+        parent_pids_to_child_processes: &HashMap<u64, Vec<Process>>,
+    ) {
+        let maybe_children = parent_pids_to_child_processes.get(&self.pid);
+        let is_parent = maybe_children.is_some_and(|children| !children.is_empty());
+
+        &self.print(max_num_pid_chars, is_parent, child_status);
+
+        if let Some(children) = maybe_children {
+            let non_root_parent_child_positions: Vec<ChildPosition> = match child_status {
+                ChildStatus::NotChild => Vec::new(),
+                ChildStatus::IsChild {
+                    position,
+                    non_root_parent_child_positions,
+                } => {
+                    let mut v = non_root_parent_child_positions.clone();
+                    v.push(position);
+                    v
+                }
+            };
+
+            for (i, child_process) in children.iter().enumerate() {
+                let childs_child_position = if i + 1 == children.len() {
+                    ChildPosition::LastChild
+                } else {
+                    ChildPosition::MiddleChild
+                };
+                let childs_child_status = ChildStatus::IsChild {
+                    position: childs_child_position,
+                    non_root_parent_child_positions: &non_root_parent_child_positions,
+                };
+                Self::print_recursive(
+                    child_process,
+                    max_num_pid_chars,
+                    childs_child_status,
+                    parent_pids_to_child_processes,
+                );
+            }
+        }
     }
 
     /// Print the process to the screen, with appropriate indentation and tree-related
@@ -152,15 +197,7 @@ impl Process {
             }
         }
     }
-    // TODO fix not-quite-right tree char printing logic
-    //   - is my logic plain wrong? feels wrong for me to be ignoring root... like I should always be adding
-    //     a pipe or L for it. (Am I clear on how to detect the L case?)
-    //     - actually maybe this is fine... I always figure out what to do about the root node by knowing
-    //       that my first non-root parent is a middle child. I think the below is my ONLY issue.
-    //   - I think I need to fix my parent-vec juggling.
-    //     I feel like I'm mishandling the "lots of chained processes with just one child" case, prematurely
-    //     popping parents off. Maybe I need to capture the 'pop' operation in the Stack instead, or just
-    //     deal with creating a fresh parents Vec for every individual stack node.
+    // TODO clean up 'recursive' vs 'non-recursive' print
     // TODO figure out how to limit the number of chars in 'args' to what the terminal will allow, then
     //   re-introduce args to my output
     // TODO Colorize lines? Primary colors and orange, perhaps?
@@ -227,62 +264,10 @@ fn main() {
     // The root process will always be the one and only process with a parent PID of 0.
     let root: &Process = &parent_pids_to_child_processes.get(&0).unwrap()[0];
 
-    // Use a stack to effectively do depth-first search through our tree, printing
-    // every process as we go. To print out our tree, we must also track:
-    // - whether the process is a middle or last child of its parent
-    // - whether each of the process's parents was a middle or last child
-    let mut stack: Vec<ProcessStackNode> = vec![ProcessStackNode {
-        process: root,
-        maybe_child_position: None, // root is not a child
-    }];
-
-    let mut non_root_parent_child_positions: Vec<ChildPosition> = Vec::new();
-
-    while let Some(ProcessStackNode {
-        process,
-        maybe_child_position,
-    }) = stack.pop()
-    {
-        let maybe_children = parent_pids_to_child_processes.get(&process.pid);
-        let is_parent = maybe_children.is_some_and(|children| !children.is_empty());
-
-        let child_status = if let Some(child_position) = maybe_child_position {
-            ChildStatus::IsChild {
-                position: child_position,
-                non_root_parent_child_positions: &non_root_parent_child_positions,
-            }
-        } else {
-            ChildStatus::NotChild
-        };
-        process.print(max_num_pid_chars, is_parent, child_status);
-
-        // potentially pop this node's parent off the 'parents' stack
-        if maybe_child_position == Some(ChildPosition::LastChild)
-            && non_root_parent_child_positions.len() > 0
-        {
-            non_root_parent_child_positions.pop();
-        }
-
-        if let Some(children) = maybe_children {
-            // Since this process has children, push it onto the 'parents' stack
-            // (as long as it isn't the root process)
-            if let Some(child_position) = maybe_child_position {
-                non_root_parent_child_positions.push(child_position);
-            }
-
-            // Push all of this process's children onto the stack, in reverse order
-            // so that the first child will be popped first
-            for (rev_i, child_process) in children.iter().rev().enumerate() {
-                let childs_child_position = if rev_i == 0 {
-                    ChildPosition::LastChild
-                } else {
-                    ChildPosition::MiddleChild
-                };
-                stack.push(ProcessStackNode {
-                    process: child_process,
-                    maybe_child_position: Some(childs_child_position),
-                })
-            }
-        }
-    }
+    Process::print_recursive(
+        root,
+        max_num_pid_chars,
+        ChildStatus::NotChild,
+        &parent_pids_to_child_processes,
+    );
 }
