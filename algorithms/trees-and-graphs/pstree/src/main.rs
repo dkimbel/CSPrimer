@@ -153,8 +153,15 @@ impl Process {
         }
     }
     // TODO fix not-quite-right tree char printing logic
-    //   would it help if I dbg-printed the full-tree dict of ppid to processes, for reference?
-    // TODO figure out how to liit the number of chars in 'args' to what the terminal will allow, then
+    //   - is my logic plain wrong? feels wrong for me to be ignoring root... like I should always be adding
+    //     a pipe or L for it. (Am I clear on how to detect the L case?)
+    //     - actually maybe this is fine... I always figure out what to do about the root node by knowing
+    //       that my first non-root parent is a middle child. I think the below is my ONLY issue.
+    //   - I think I need to fix my parent-vec juggling.
+    //     I feel like I'm mishandling the "lots of chained processes with just one child" case, prematurely
+    //     popping parents off. Maybe I need to capture the 'pop' operation in the Stack instead, or just
+    //     deal with creating a fresh parents Vec for every individual stack node.
+    // TODO figure out how to limit the number of chars in 'args' to what the terminal will allow, then
     //   re-introduce args to my output
     // TODO Colorize lines? Primary colors and orange, perhaps?
     // TODO Try implementing 'only show lines that match specific text'
@@ -169,10 +176,18 @@ impl Process {
     // TODO Maybe find a way to get wider text length as output from ps?
     // TODO Align by username length within a level/batch?
     // TODO Any refactor / code cleanup?
+    //   - could I possibly have reusable 'tree search' code that takes some kind of 'action' as an
+    //     input? that action could be 'print', or it could be 'check for text match and merge into tree'.
+    //     - could I at least have a StackSearch struct that keeps the mutable stack as an attr, and so
+    //       can easily have separate helper functions for 'handle parent pop' and 'handle print'? BUT,
+    //       I don't know how well that would work in Rust... would I have to always have mutable refs
+    //       on both lists from my helpers, preventing me from handing out an immutable ref to the
+    //       process printing fn?
     //   - try to be guided by common arguments not having to be passed to functions, because they belong
     //     to a relevant struct already?
     //   - maybe have a ProcessPrinter that keeps track of max_num_process_chars for us?
     //   - generally split out parsing of the full process list into its own function / struct?
+    //   - do I reasonably need to split into multiple files?
     // TODO add/update comments? add missing docstrings?
     // TODO Add README featuring a screenshot
     // TODO Consider `hyperfine` for benchmarking vs pstree?
