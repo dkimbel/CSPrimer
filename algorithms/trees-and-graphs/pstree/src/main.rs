@@ -1,3 +1,4 @@
+use crossterm::terminal;
 use regex::Regex;
 use std::collections::HashMap;
 use std::process::Command;
@@ -95,6 +96,7 @@ impl Process {
     fn print_recursive(
         &self,
         max_num_pid_chars: usize,
+        terminal_width: usize,
         child_status: ChildStatus,
         parent_pids_to_child_processes: &HashMap<u64, Vec<Process>>,
     ) {
@@ -104,7 +106,8 @@ impl Process {
         // do the actual printing
         let tree_chars = self.get_tree_chars(is_parent, child_status);
         let Self { pid, user, args } = self;
-        println!("{tree_chars} {pid:0max_num_pid_chars$} {user}");
+        let process_line = format!("{tree_chars} {pid:0max_num_pid_chars$} {user} {args}");
+        println!("{process_line:.terminal_width$}");
 
         // recursively print all children of the current process
         if let Some(children) = maybe_children {
@@ -140,6 +143,7 @@ impl Process {
                 Self::print_recursive(
                     child_process,
                     max_num_pid_chars,
+                    terminal_width,
                     childs_child_status,
                     parent_pids_to_child_processes,
                 );
@@ -200,8 +204,6 @@ impl Process {
             }
         }
     }
-    // TODO figure out how to limit the number of chars in 'args' to what the terminal will allow, then
-    //   re-introduce args to my output
     // TODO Colorize lines? Primary colors and orange, perhaps?
     // TODO Try implementing 'only show lines that match specific text'
     //   this could be done via a first-pass search through the tree where we use a single mutable vec
@@ -222,15 +224,17 @@ impl Process {
     //       I don't know how well that would work in Rust... would I have to always have mutable refs
     //       on both lists from my helpers, preventing me from handing out an immutable ref to the
     //       process printing fn?
+    //   - maybe have a ProcessPrinter that keeps track of max_num_process_chars for us, plus terminal
+    //     width and even hashmap of parent PIDs to child processes? But, big question: how to share code
+    //     between the ProcessPrinter and a ProcessSearcher used to filter for processes that match string?
     //   - try to be guided by common arguments not having to be passed to functions, because they belong
     //     to a relevant struct already?
-    //   - maybe have a ProcessPrinter that keeps track of max_num_process_chars for us?
     //   - generally split out parsing of the full process list into its own function / struct?
     //   - do I reasonably need to split into multiple files?
     // TODO add/update comments? add missing docstrings?
-    // TODO Add README featuring a screenshot
+    // TODO Add README featuring a screenshot and noting crossterm
     // TODO Consider `hyperfine` for benchmarking vs pstree?
-    // TODO Submit, mentioning screenshot in README or direct-linking it
+    // TODO Submit, mentioning screenshot in README or direct-linking it; also note crossterm if using
 }
 
 fn main() {
@@ -263,12 +267,17 @@ fn main() {
     // of the largest PID.
     let max_num_pid_chars = format!("{max_pid}").len();
 
+    let terminal_width = terminal::size()
+        .expect("Failed to find terminal's dimensions")
+        .0 as usize;
+
     // The root process will always be the one and only process with a parent PID of 0.
     let root: &Process = &parent_pids_to_child_processes.get(&0).unwrap()[0];
 
     Process::print_recursive(
         root,
         max_num_pid_chars,
+        terminal_width,
         ChildStatus::NotChild,
         &parent_pids_to_child_processes,
     );
