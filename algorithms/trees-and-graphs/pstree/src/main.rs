@@ -1,3 +1,4 @@
+use crossterm::style::{style, Color, Stylize};
 use crossterm::terminal;
 use regex::Regex;
 use std::collections::HashMap;
@@ -6,6 +7,7 @@ use std::sync::OnceLock;
 
 // Minor optimization to only compile our regex one time throughout life of program
 static PROCESS_LINE_REGEX: OnceLock<Regex> = OnceLock::new();
+const COLORS: [Color; 3] = [Color::Yellow, Color::Red, Color::Cyan];
 
 /// Chars that will be printed to the screen to reflect the structure of the tree.
 /// R = Right, L = Left, T = Top, B = Bottom. So e.g. RL is a dash-like char that
@@ -59,11 +61,6 @@ struct Process {
     args: String,
 }
 
-struct ProcessStackNode<'a> {
-    process: &'a Process,
-    maybe_child_position: Option<ChildPosition>, // None for root node
-}
-
 impl Process {
     /// Create a Process from a line outputted by a `ps` command using a particular format.
     /// Return a tuple of the new Process and its parent PID. (Keeping the parent PID
@@ -103,11 +100,24 @@ impl Process {
         let maybe_children = parent_pids_to_child_processes.get(&self.pid);
         let is_parent = maybe_children.is_some_and(|children| !children.is_empty());
 
-        // do the actual printing
-        let tree_chars = self.get_tree_chars(is_parent, child_status);
+        // Do the actual printing
+        let (tree_chars, num_visible_tree_chars) = self.get_tree_chars(is_parent, child_status);
         let Self { pid, user, args } = self;
-        let process_line = format!("{tree_chars} {pid:0max_num_pid_chars$} {user} {args}");
-        println!("{process_line:.terminal_width$}");
+        let formatted_pid = format!("{pid:0max_num_pid_chars$}");
+        // We add 3 to deal with whitespace we added between different pieces of text. Meanwhile,
+        // we assume text will be ASCII and so use len() instead of .chars().count().
+        let visible_content_length =
+            num_visible_tree_chars + 3 + formatted_pid.len() + user.len() + args.len();
+        let process_line = format!(
+            "{tree_chars} {} {} {args}",
+            formatted_pid.blue(),
+            style(&user).with(Color::Magenta)
+        );
+        // We have to calculate how many ansi color code characters are present, because we add
+        // a variable amount of them to our tree chars.
+        let num_ansi_color_chars = process_line.chars().count() - visible_content_length;
+        let num_chars_to_print = terminal_width + num_ansi_color_chars;
+        println!("{process_line:.num_chars_to_print$}");
 
         // recursively print all children of the current process
         if let Some(children) = maybe_children {
@@ -151,7 +161,7 @@ impl Process {
         }
     }
 
-    fn get_tree_chars(&self, is_parent: bool, child_status: ChildStatus) -> String {
+    fn get_tree_chars(&self, is_parent: bool, child_status: ChildStatus) -> (String, usize) {
         match child_status {
             ChildStatus::NotChild => {
                 let middle_tree_char = if is_parent {
@@ -159,16 +169,20 @@ impl Process {
                 } else {
                     TreeChar::RL
                 };
-                return [TreeChar::RL, middle_tree_char, TreeChar::RL]
+                let s = [TreeChar::RL, middle_tree_char, TreeChar::RL]
                     .iter()
                     .map(|tc| tc.to_char())
                     .collect::<String>();
+                let styled = style(&s).with(COLORS[0]).to_string();
+                (styled, s.len())
             }
             ChildStatus::IsChild {
                 position,
                 non_root_parent_child_positions,
             } => {
                 let mut s = String::from(' ');
+                let mut num_uncolored_chars: usize = 1;
+                let mut colors_i: usize = 0;
 
                 // We need to indent this Process further based on how many parents
                 // it has. We might also need to draw some top-to-bottom lines on
@@ -178,8 +192,16 @@ impl Process {
                         ChildPosition::MiddleChild => TreeChar::TB.to_char(),
                         ChildPosition::LastChild => ' ',
                     };
-                    s.push(position_char);
-                    s.push(' ');
+                    let mut unstyled = String::new();
+                    unstyled.push(position_char);
+                    unstyled.push(' ');
+                    num_uncolored_chars += 2;
+                    let styled = style(unstyled)
+                        .with(COLORS[colors_i % COLORS.len()])
+                        .to_string();
+                    s.extend(styled.chars());
+
+                    colors_i += 1;
                 }
 
                 // add the final tree characters, which may look like the
@@ -198,24 +220,28 @@ impl Process {
                     branch_to_children_tree_char,
                     TreeChar::RL,
                 ]
-                .map(|tc| tc.to_char());
-                s.extend(final_chars);
-                return s;
+                .map(|tc| tc.to_char())
+                .iter()
+                .collect::<String>();
+                num_uncolored_chars += 4;
+                let final_chars_styled = style(final_chars)
+                    .with(COLORS[colors_i % COLORS.len()])
+                    .to_string();
+                s.extend(final_chars_styled.chars());
+                (s, num_uncolored_chars)
             }
         }
     }
-    // TODO Colorize lines? Primary colors and orange, perhaps?
     // TODO Try implementing 'only show lines that match specific text'
     //   this could be done via a first-pass search through the tree where we use a single mutable vec
     //   to track which parents we're currently searching under. when we find a hit, we "merge" our current
     //   path into a parent-pid-to-process dict representing the tree so far. For extra optimization, do the
     //   'merge' in a batch at the end of the current list of children we're working through (maybe detected
     //   by indentation level dropping?), instead of immediately on finding a match.
+    //   - this should include bolding the matched text without messing up full-width-of-terminal display!
     // TODO Note how I could have done printing in the same pass as parsing, since inputs were pre-sorted.
     //   But, keeping the processes separate will let us implement 'only show lines that show text' without
     //   disrupting the codebase much.
-    // TODO Maybe find a way to get wider text length as output from ps?
-    // TODO Align by username length within a level/batch?
     // TODO Any refactor / code cleanup?
     //   - could I possibly have reusable 'tree search' code that takes some kind of 'action' as an
     //     input? that action could be 'print', or it could be 'check for text match and merge into tree'.
@@ -227,14 +253,15 @@ impl Process {
     //   - maybe have a ProcessPrinter that keeps track of max_num_process_chars for us, plus terminal
     //     width and even hashmap of parent PIDs to child processes? But, big question: how to share code
     //     between the ProcessPrinter and a ProcessSearcher used to filter for processes that match string?
+    //   - can I clean up 'num ansi chars' calculation code?
     //   - try to be guided by common arguments not having to be passed to functions, because they belong
     //     to a relevant struct already?
     //   - generally split out parsing of the full process list into its own function / struct?
     //   - do I reasonably need to split into multiple files?
     // TODO add/update comments? add missing docstrings?
-    // TODO Add README featuring a screenshot and noting crossterm
-    // TODO Consider `hyperfine` for benchmarking vs pstree?
-    // TODO Submit, mentioning screenshot in README or direct-linking it; also note crossterm if using
+    // TODO Add README featuring a screenshot and noting crossterm. Also have instructions for doing a prod
+    //   build and then calling the compiled executable.
+    // TODO Submit, mentioning screenshot in README or direct-linking it; also note crossterm for width/colors
 }
 
 fn main() {
