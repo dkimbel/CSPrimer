@@ -59,11 +59,20 @@ enum ChildStatus<'a> {
     },
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 struct Process {
     pid: usize,
     user: String,
     args: String,
+}
+
+impl PartialEq for Process {
+    /// Equality should only depend on PID, not on string values. We might have one copy of
+    /// a process that has had some ANSI color codes added to its strings, and another copy
+    /// without color codes; they should still be 'equal' if their PIDs match.
+    fn eq(&self, other: &Self) -> bool {
+        self.pid == other.pid
+    }
 }
 
 impl Process {
@@ -99,13 +108,13 @@ impl Process {
     /// their parents_ will be copied from the `all` map to the `filtered` map.
     fn filter_by_text_recursive<'proc>(
         &self,
-        uppercased_filter_text: &str,
+        lowercased_filter_text: &str,
         parents: &Vec<&Process>,
         all_parent_pids_to_child_processes: &HashMap<usize, Vec<Process>>,
         filtered_parent_pids_to_child_processes: &mut HashMap<usize, Vec<Process>>,
     ) {
-        if self.args.to_uppercase().contains(uppercased_filter_text) {
-            // This process matches our filter! Merge it and its parents into our filtered map.
+        if self.args.to_lowercase().contains(lowercased_filter_text) {
+            // This process matches our filter! Merge the process and its parents into our filtered map.
             // Note: since I left parent pid out of the process struct, we need to keep track of
             // it ourselves.
             let mut parent_pid = ROOT_PARENT_PID; // the first parent's parent is always root
@@ -121,6 +130,8 @@ impl Process {
                 }
                 parent_pid = process.pid;
             }
+            // TODO also actually bold-ify text
+            // TODO also make sure the bold-ify text version of self gets used in iterator chain.
         }
 
         // Recurse through all children of this process
@@ -131,7 +142,7 @@ impl Process {
             for child in children {
                 Self::filter_by_text_recursive(
                     child,
-                    uppercased_filter_text,
+                    lowercased_filter_text,
                     &childs_parents,
                     all_parent_pids_to_child_processes,
                     filtered_parent_pids_to_child_processes,
@@ -146,6 +157,7 @@ impl Process {
         terminal_width: usize,
         child_status: ChildStatus,
         parent_pids_to_child_processes: &HashMap<usize, Vec<Process>>,
+        maybe_filter_text: Option<&str>,
     ) {
         let maybe_children = parent_pids_to_child_processes.get(&self.pid);
         let is_parent = maybe_children.is_some_and(|children| !children.is_empty());
@@ -158,8 +170,27 @@ impl Process {
         // we assume text will be ASCII and so use len() instead of .chars().count().
         let visible_content_length =
             num_visible_tree_chars + 3 + formatted_pid.len() + user.len() + args.len();
+
+        let formatted_args = if let Some(filter_text) = maybe_filter_text {
+            if let Some(match_start_i) = args.to_lowercase().find(filter_text) {
+                let match_end_i = match_start_i + filter_text.len();
+                &format!(
+                    "{}{}{}",
+                    &args[..match_start_i],
+                    &args[match_start_i..match_end_i].white(),
+                    &args[match_end_i..]
+                )
+            } else {
+                // Annoying to have to use this `else` case twice -- very soon Rust will
+                // support 'if let chaining', which would clean this up
+                args
+            }
+        } else {
+            args
+        };
+
         let process_line = format!(
-            "{tree_chars} {} {} {args}",
+            "{tree_chars} {} {} {formatted_args}",
             formatted_pid.blue(),
             style(&user).with(Color::Magenta)
         );
@@ -206,6 +237,7 @@ impl Process {
                     terminal_width,
                     childs_child_status,
                     parent_pids_to_child_processes,
+                    maybe_filter_text,
                 );
             }
         }
@@ -282,9 +314,6 @@ impl Process {
             }
         }
     }
-    // TODO Make matched text bolded! Without ruining full-width text display.
-    // TODO any way to be polymorphic between reference and non-reference? So I can let my filtered
-    //   tree just use references to processes, and not clone?
     // TODO Any refactor / code cleanup?
     //   - could I possibly have reusable 'tree search' code that takes some kind of 'action' as an
     //     input? that action could be 'print', or it could be 'check for text match and merge into tree'.
@@ -364,24 +393,25 @@ fn main() {
     );
 
     let all_processes_root = &root_process_list[0];
+    let filter_processes_by_text_lowercase = filter_processes_by_text.map(|s| s.to_lowercase());
 
     // If we were given text to filter processes by, create a new filtered tree.
-    let parent_pids_to_child_processes = if let Some(filter_text) = filter_processes_by_text {
-        let mut filtered_parent_pids_to_child_processes = HashMap::new();
-        let parents: Vec<&Process> = Vec::new();
-        let uppercased_filter_text = filter_text.to_uppercase();
+    let parent_pids_to_child_processes =
+        if let Some(filter_text) = &filter_processes_by_text_lowercase {
+            let mut filtered_parent_pids_to_child_processes = HashMap::new();
+            let parents: Vec<&Process> = Vec::new();
 
-        Process::filter_by_text_recursive(
-            all_processes_root,
-            &uppercased_filter_text,
-            &parents,
-            &all_parent_pids_to_child_processes,
-            &mut filtered_parent_pids_to_child_processes,
-        );
-        filtered_parent_pids_to_child_processes
-    } else {
-        all_parent_pids_to_child_processes
-    };
+            Process::filter_by_text_recursive(
+                all_processes_root,
+                &filter_text,
+                &parents,
+                &all_parent_pids_to_child_processes,
+                &mut filtered_parent_pids_to_child_processes,
+            );
+            filtered_parent_pids_to_child_processes
+        } else {
+            all_parent_pids_to_child_processes
+        };
 
     if let Some(root) = &parent_pids_to_child_processes
         .get(&ROOT_PARENT_PID)
@@ -397,6 +427,7 @@ fn main() {
             terminal_width,
             ChildStatus::NotChild,
             &parent_pids_to_child_processes,
+            filter_processes_by_text_lowercase.as_deref(),
         );
     }
 }
