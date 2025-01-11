@@ -15,9 +15,11 @@ const ROOT_PARENT_PID: usize = 0;
 
 /// Chars that will be printed to the screen to reflect the structure of the tree.
 /// R = Right, L = Left, T = Top, B = Bottom. So e.g. RL is a dash-like char that
-/// extends from left to right.
+/// extends from left to right. DOUBLE_RL is a special case of two lines, like
+/// the equals sign.
 enum TreeChar {
     RL,
+    DOUBLE_RL,
     RBL,
     TRB,
     TB,
@@ -29,6 +31,7 @@ impl TreeChar {
         use TreeChar::*;
         match self {
             RL => '─',
+            DOUBLE_RL => '=', // could use ═, but it's less visually distinct from ─
             RBL => '┬',
             TRB => '├',
             TB => '│',
@@ -61,9 +64,10 @@ enum ChildStatus<'a> {
 
 #[derive(Clone)]
 struct Process {
-    pid: usize,
+    pid: usize,  // process ID
+    pgid: usize, // process group ID
     user: String,
-    args: String,
+    command: String,
 }
 
 impl PartialEq for Process {
@@ -82,23 +86,26 @@ impl Process {
     /// of it unnecessarily, when we put the struct into a map with parent PID as the key.)
     fn from_ps_line(line: &str) -> (Self, usize) {
         let re = PROCESS_LINE_REGEX
-            // example line: "  391     1 root             /usr/libexec/keybagd -t 15"
-            .get_or_init(|| Regex::new(r"^\s*(\d+)\s+(\d+)\s+(\w+)\s+(.*?)\s*$").unwrap());
+            // example line: "root               322     1   322 /usr/libexec/keybagd -t 15"
+            .get_or_init(|| Regex::new(r"^(\w+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(.*?)$").unwrap());
         let captures = re
             .captures(line)
             .expect(&format!("Failed to parse line from ps: {line}"));
 
-        let parent_pid = captures[2]
+        let parent_pid = captures[3]
             .parse::<usize>()
             .expect("failed to parse ppid as integer");
 
         (
             Self {
-                pid: captures[1]
+                user: captures[1].to_string(),
+                pid: captures[2]
                     .parse::<usize>()
                     .expect("failed to parse pid as integer"),
-                user: captures[3].to_string(),
-                args: captures[4].to_string(),
+                pgid: captures[4]
+                    .parse::<usize>()
+                    .expect("failed to parse pgid as integer"),
+                command: captures[5].to_string(),
             },
             parent_pid,
         )
@@ -124,7 +131,7 @@ impl Process {
                 .or_insert_with(Vec::new);
             entry.push(self.clone());
             true
-        } else if self.args.to_lowercase().contains(lowercased_filter_text) {
+        } else if self.command.to_lowercase().contains(lowercased_filter_text) {
             // This process matches our filter! Merge the process and its parents into our filtered map.
             // Note: since I left parent pid out of the process struct, we need to keep track of
             // it ourselves.
@@ -177,33 +184,35 @@ impl Process {
 
         // Do the actual printing
         let (tree_chars, num_visible_tree_chars) = self.get_tree_chars(is_parent, child_status);
-        let Self { pid, user, args } = self;
+        let Self {
+            pid, user, command, ..
+        } = self;
         let formatted_pid = format!("{pid:0max_num_pid_chars$}");
         // We add 3 to deal with whitespace we added between different pieces of text. Meanwhile,
         // we assume text will be ASCII and so use len() instead of .chars().count().
         let visible_content_length =
-            num_visible_tree_chars + 3 + formatted_pid.len() + user.len() + args.len();
+            num_visible_tree_chars + 3 + formatted_pid.len() + user.len() + command.len();
 
-        let formatted_args = if let Some(filter_text) = maybe_filter_text {
-            if let Some(match_start_i) = args.to_lowercase().find(filter_text) {
+        let formatted_command = if let Some(filter_text) = maybe_filter_text {
+            if let Some(match_start_i) = command.to_lowercase().find(filter_text) {
                 let match_end_i = match_start_i + filter_text.len();
                 &format!(
                     "{}{}{}",
-                    &args[..match_start_i],
-                    &args[match_start_i..match_end_i].white(),
-                    &args[match_end_i..]
+                    &command[..match_start_i],
+                    &command[match_start_i..match_end_i].white(),
+                    &command[match_end_i..]
                 )
             } else {
                 // Annoying to have to use this `else` case twice -- very soon Rust will
                 // support 'if let chaining', which would clean this up
-                args
+                command
             }
         } else {
-            args
+            command
         };
 
         let process_line = format!(
-            "{tree_chars} {} {} {formatted_args}",
+            "{tree_chars} {} {} {formatted_command}",
             formatted_pid.blue(),
             style(&user).with(Color::Magenta)
         );
@@ -264,7 +273,12 @@ impl Process {
                 } else {
                     TreeChar::RL
                 };
-                let s = [TreeChar::RL, middle_tree_char, TreeChar::RL]
+                let last_tree_char = if self.pid == self.pgid {
+                    TreeChar::DOUBLE_RL
+                } else {
+                    TreeChar::RL
+                };
+                let s = [TreeChar::RL, middle_tree_char, last_tree_char]
                     .iter()
                     .map(|tc| tc.to_char())
                     .collect::<String>();
@@ -309,11 +323,16 @@ impl Process {
                     true => TreeChar::RBL,
                     false => TreeChar::RL,
                 };
+                let last_tree_char = if self.pid == self.pgid {
+                    TreeChar::DOUBLE_RL
+                } else {
+                    TreeChar::RL
+                };
                 let final_chars = [
                     position_tree_char,
                     TreeChar::RL,
                     branch_to_children_tree_char,
-                    TreeChar::RL,
+                    last_tree_char,
                 ]
                 .map(|tc| tc.to_char())
                 .iter()
@@ -327,12 +346,6 @@ impl Process {
             }
         }
     }
-    // TODO tweak my 'filter' impl to also show all descendants of matches. Presumably means adding
-    //   an "all descendants automatically match" boolean argument to the function -- that might be all.
-    //   Search for `login` to see the current discrepancy.
-    // TODO start to show an `=` under the same circumstances as pstree? May have to do with their
-    //   inner command being different from mine, `ps -axwwo user,pid,ppid,pgid,command`. Option for
-    //   a doubled-up char: ═. Or use the same literal = as pstree.
     // TODO Any refactor / code cleanup?
     //   - could I possibly have reusable 'tree search' code that takes some kind of 'action' as an
     //     input? that action could be 'print', or it could be 'check for text match and merge into tree'.
@@ -352,6 +365,7 @@ impl Process {
     //   - get rid of any/all remaining compilation warnings
     //   - add a comment on how I could have done printing in the same pass as parsing, since inputs
     //     were pre-sorted. But just as well to keep that separate given optional filtering step.
+    //   - only do pid == pgid check one place, not two?
     // TODO add/update comments? add missing docstrings?
     // TODO Add README
     //   - featuring a screenshot and noting crossterm.
@@ -373,7 +387,7 @@ fn main() {
     let filter_processes_by_text = args.get(0);
 
     let ps_stdout_bytes = Command::new("ps")
-        .args(["-axo", "pid,ppid,user,args"])
+        .args(["-axwwo", "user,pid,ppid,pgid,command"]) // same args used by real pstree, I think
         .output()
         .expect("ps command failed")
         .stdout;
