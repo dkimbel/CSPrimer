@@ -2,12 +2,16 @@ use crossterm::style::{style, Color, Stylize};
 use crossterm::terminal;
 use regex::Regex;
 use std::collections::HashMap;
+use std::env;
 use std::process::Command;
 use std::sync::OnceLock;
 
 // Minor optimization to only compile our regex one time throughout life of program
 static PROCESS_LINE_REGEX: OnceLock<Regex> = OnceLock::new();
+// These are the colors our tree characters will cycle through as they become
+// increasingly nested.
 const COLORS: [Color; 3] = [Color::Yellow, Color::Red, Color::Cyan];
+const ROOT_PARENT_PID: usize = 0;
 
 /// Chars that will be printed to the screen to reflect the structure of the tree.
 /// R = Right, L = Left, T = Top, B = Bottom. So e.g. RL is a dash-like char that
@@ -55,8 +59,9 @@ enum ChildStatus<'a> {
     },
 }
 
+#[derive(Clone, PartialEq)]
 struct Process {
-    pid: u64,
+    pid: usize,
     user: String,
     args: String,
 }
@@ -66,7 +71,7 @@ impl Process {
     /// Return a tuple of the new Process and its parent PID. (Keeping the parent PID
     /// separate from the struct is just a slight optimization to avoid storing extra copies
     /// of it unnecessarily, when we put the struct into a map with parent PID as the key.)
-    fn from_ps_line(line: &str) -> (Self, u64) {
+    fn from_ps_line(line: &str) -> (Self, usize) {
         let re = PROCESS_LINE_REGEX
             // example line: "  391     1 root             /usr/libexec/keybagd -t 15"
             .get_or_init(|| Regex::new(r"^\s*(\d+)\s+(\d+)\s+(\w+)\s+(.*?)\s*$").unwrap());
@@ -75,13 +80,13 @@ impl Process {
             .expect(&format!("Failed to parse line from ps: {line}"));
 
         let parent_pid = captures[2]
-            .parse::<u64>()
+            .parse::<usize>()
             .expect("failed to parse ppid as integer");
 
         (
             Self {
                 pid: captures[1]
-                    .parse::<u64>()
+                    .parse::<usize>()
                     .expect("failed to parse pid as integer"),
                 user: captures[3].to_string(),
                 args: captures[4].to_string(),
@@ -90,12 +95,57 @@ impl Process {
         )
     }
 
+    /// Filter processes by the given text (case-insensitive). Matching processes _and all of
+    /// their parents_ will be copied from the `all` map to the `filtered` map.
+    fn filter_by_text_recursive<'proc>(
+        &self,
+        uppercased_filter_text: &str,
+        parents: &Vec<&Process>,
+        all_parent_pids_to_child_processes: &HashMap<usize, Vec<Process>>,
+        filtered_parent_pids_to_child_processes: &mut HashMap<usize, Vec<Process>>,
+    ) {
+        if self.args.to_uppercase().contains(uppercased_filter_text) {
+            // This process matches our filter! Merge it and its parents into our filtered map.
+            // Note: since I left parent pid out of the process struct, we need to keep track of
+            // it ourselves.
+            let mut parent_pid = ROOT_PARENT_PID; // the first parent's parent is always root
+            for process in parents.iter().chain(std::iter::once(&self)) {
+                let entry = filtered_parent_pids_to_child_processes
+                    .entry(parent_pid)
+                    .or_insert_with(Vec::new);
+                // This `contains` check runs in O(n) time (not great), but these lists shouldn't be
+                // very long. If necessary, we could start to use a HashSet for O(1) lookup, and later
+                // convert the set to a list (sorted by process ID!).
+                if !entry.contains(process) {
+                    entry.push((*process).clone());
+                }
+                parent_pid = process.pid;
+            }
+        }
+
+        // Recurse through all children of this process
+        if let Some(children) = all_parent_pids_to_child_processes.get(&self.pid) {
+            let mut childs_parents = parents.clone();
+            childs_parents.push(self);
+
+            for child in children {
+                Self::filter_by_text_recursive(
+                    child,
+                    uppercased_filter_text,
+                    &childs_parents,
+                    all_parent_pids_to_child_processes,
+                    filtered_parent_pids_to_child_processes,
+                )
+            }
+        }
+    }
+
     fn print_recursive(
         &self,
         max_num_pid_chars: usize,
         terminal_width: usize,
         child_status: ChildStatus,
-        parent_pids_to_child_processes: &HashMap<u64, Vec<Process>>,
+        parent_pids_to_child_processes: &HashMap<usize, Vec<Process>>,
     ) {
         let maybe_children = parent_pids_to_child_processes.get(&self.pid);
         let is_parent = maybe_children.is_some_and(|children| !children.is_empty());
@@ -232,16 +282,9 @@ impl Process {
             }
         }
     }
-    // TODO Try implementing 'only show lines that match specific text'
-    //   this could be done via a first-pass search through the tree where we use a single mutable vec
-    //   to track which parents we're currently searching under. when we find a hit, we "merge" our current
-    //   path into a parent-pid-to-process dict representing the tree so far. For extra optimization, do the
-    //   'merge' in a batch at the end of the current list of children we're working through (maybe detected
-    //   by indentation level dropping?), instead of immediately on finding a match.
-    //   - this should include bolding the matched text without messing up full-width-of-terminal display!
-    // TODO Note how I could have done printing in the same pass as parsing, since inputs were pre-sorted.
-    //   But, keeping the processes separate will let us implement 'only show lines that show text' without
-    //   disrupting the codebase much.
+    // TODO Make matched text bolded! Without ruining full-width text display.
+    // TODO any way to be polymorphic between reference and non-reference? So I can let my filtered
+    //   tree just use references to processes, and not clone?
     // TODO Any refactor / code cleanup?
     //   - could I possibly have reusable 'tree search' code that takes some kind of 'action' as an
     //     input? that action could be 'print', or it could be 'check for text match and merge into tree'.
@@ -258,6 +301,9 @@ impl Process {
     //     to a relevant struct already?
     //   - generally split out parsing of the full process list into its own function / struct?
     //   - do I reasonably need to split into multiple files?
+    //   - get rid of any/all remaining compilation warnings
+    //   - add a comment on how I could have done printing in the same pass as parsing, since inputs
+    //     were pre-sorted. But just as well to keep that separate given optional filtering step.
     // TODO add/update comments? add missing docstrings?
     // TODO Add README featuring a screenshot and noting crossterm. Also have instructions for doing a prod
     //   build and then calling the compiled executable.
@@ -265,6 +311,15 @@ impl Process {
 }
 
 fn main() {
+    let args = env::args().skip(1).collect::<Vec<_>>();
+    if args.len() > 1 {
+        panic!(
+            "Only one argument is allowed; it will be used to filter the displayed processes. \
+            To filter by a phrase containing whitespace, enclose the phrase in quotation marks."
+        )
+    }
+    let filter_processes_by_text = args.get(0);
+
     let ps_stdout_bytes = Command::new("ps")
         .args(["-axo", "pid,ppid,user,args"])
         .output()
@@ -275,7 +330,7 @@ fn main() {
     // To model a tree (graph where every child can have only one parent), we use a map
     // of parent PID to process instance. We could do something more elaborate where each
     // Process owns a Vec<Process> of its children, but that isn't necessary.
-    let mut parent_pids_to_child_processes: HashMap<u64, Vec<Process>> = HashMap::new();
+    let mut all_parent_pids_to_child_processes: HashMap<usize, Vec<Process>> = HashMap::new();
     let mut max_pid = 0;
 
     // We use skip(1) to skip the first line, which just contains headers.
@@ -284,7 +339,7 @@ fn main() {
         // Technically we don't HAVE to call `max`, lines are already sorted by PID.
         max_pid = std::cmp::max(max_pid, process.pid);
 
-        parent_pids_to_child_processes
+        all_parent_pids_to_child_processes
             .entry(parent_pid)
             .or_insert_with(Vec::new)
             .push(process);
@@ -298,14 +353,50 @@ fn main() {
         .expect("Failed to find terminal's dimensions")
         .0 as usize;
 
-    // The root process will always be the one and only process with a parent PID of 0.
-    let root: &Process = &parent_pids_to_child_processes.get(&0).unwrap()[0];
+    // The root process will always be the only child of a special parent PID.
+    let root_process_list: &Vec<Process> = &all_parent_pids_to_child_processes
+        .get(&ROOT_PARENT_PID)
+        .expect("A root process with parent pid 0 must exist");
 
-    Process::print_recursive(
-        root,
-        max_num_pid_chars,
-        terminal_width,
-        ChildStatus::NotChild,
-        &parent_pids_to_child_processes,
+    assert!(
+        root_process_list.len() == 1,
+        "There can only be one root process",
     );
+
+    let all_processes_root = &root_process_list[0];
+
+    // If we were given text to filter processes by, create a new filtered tree.
+    let parent_pids_to_child_processes = if let Some(filter_text) = filter_processes_by_text {
+        let mut filtered_parent_pids_to_child_processes = HashMap::new();
+        let parents: Vec<&Process> = Vec::new();
+        let uppercased_filter_text = filter_text.to_uppercase();
+
+        Process::filter_by_text_recursive(
+            all_processes_root,
+            &uppercased_filter_text,
+            &parents,
+            &all_parent_pids_to_child_processes,
+            &mut filtered_parent_pids_to_child_processes,
+        );
+        filtered_parent_pids_to_child_processes
+    } else {
+        all_parent_pids_to_child_processes
+    };
+
+    if let Some(root) = &parent_pids_to_child_processes
+        .get(&ROOT_PARENT_PID)
+        .and_then(|root_process_list| root_process_list.get(0))
+    {
+        // Print our tree of processes -- either all of them, or all that remain after
+        // filtering. In principle we always want to do this, but it's nested in a conditional
+        // because we could have filtered out _everything_. In that case there isn't even
+        // a root to start recursing from.
+        Process::print_recursive(
+            root,
+            max_num_pid_chars,
+            terminal_width,
+            ChildStatus::NotChild,
+            &parent_pids_to_child_processes,
+        );
+    }
 }
