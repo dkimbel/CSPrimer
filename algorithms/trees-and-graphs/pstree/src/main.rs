@@ -112,8 +112,19 @@ impl Process {
         parents: &Vec<&Process>,
         all_parent_pids_to_child_processes: &HashMap<usize, Vec<Process>>,
         filtered_parent_pids_to_child_processes: &mut HashMap<usize, Vec<Process>>,
+        parent_already_matched: bool,
     ) {
-        if self.args.to_lowercase().contains(lowercased_filter_text) {
+        let matched = if parent_already_matched {
+            // To match the behavior of `pstree -s`, we display children of any match (both direct and
+            // indirect children -- children's children, etc). Since we already know we've merged the
+            // parent and its parents into our 'filtered' map, we only need to merge in `process`.
+            let parent_pid = parents.last().unwrap().pid;
+            let entry = filtered_parent_pids_to_child_processes
+                .entry(parent_pid)
+                .or_insert_with(Vec::new);
+            entry.push(self.clone());
+            true
+        } else if self.args.to_lowercase().contains(lowercased_filter_text) {
             // This process matches our filter! Merge the process and its parents into our filtered map.
             // Note: since I left parent pid out of the process struct, we need to keep track of
             // it ourselves.
@@ -130,9 +141,10 @@ impl Process {
                 }
                 parent_pid = process.pid;
             }
-            // TODO also actually bold-ify text
-            // TODO also make sure the bold-ify text version of self gets used in iterator chain.
-        }
+            true
+        } else {
+            false
+        };
 
         // Recurse through all children of this process
         if let Some(children) = all_parent_pids_to_child_processes.get(&self.pid) {
@@ -146,6 +158,7 @@ impl Process {
                     &childs_parents,
                     all_parent_pids_to_child_processes,
                     filtered_parent_pids_to_child_processes,
+                    matched,
                 )
             }
         }
@@ -314,6 +327,12 @@ impl Process {
             }
         }
     }
+    // TODO tweak my 'filter' impl to also show all descendants of matches. Presumably means adding
+    //   an "all descendants automatically match" boolean argument to the function -- that might be all.
+    //   Search for `login` to see the current discrepancy.
+    // TODO start to show an `=` under the same circumstances as pstree? May have to do with their
+    //   inner command being different from mine, `ps -axwwo user,pid,ppid,pgid,command`. Option for
+    //   a doubled-up char: ═. Or use the same literal = as pstree.
     // TODO Any refactor / code cleanup?
     //   - could I possibly have reusable 'tree search' code that takes some kind of 'action' as an
     //     input? that action could be 'print', or it could be 'check for text match and merge into tree'.
@@ -334,8 +353,12 @@ impl Process {
     //   - add a comment on how I could have done printing in the same pass as parsing, since inputs
     //     were pre-sorted. But just as well to keep that separate given optional filtering step.
     // TODO add/update comments? add missing docstrings?
-    // TODO Add README featuring a screenshot and noting crossterm. Also have instructions for doing a prod
-    //   build and then calling the compiled executable.
+    // TODO Add README
+    //   - featuring a screenshot and noting crossterm.
+    //   - noting crossterm dependency for terminal width + colorized text
+    //   - describe `cargo build --release`, `./target/release/pstree`
+    // TODO how to properly 'install' my own pstree on my machine, to use it from any directory? Just add an
+    //   alias to ./Users/dk/Workspace/cs-primer/algorithms/trees-and-graphs/pstree/target/release/pstree?
     // TODO Submit, mentioning screenshot in README or direct-linking it; also note crossterm for width/colors
 }
 
@@ -407,6 +430,7 @@ fn main() {
                 &parents,
                 &all_parent_pids_to_child_processes,
                 &mut filtered_parent_pids_to_child_processes,
+                false,
             );
             filtered_parent_pids_to_child_processes
         } else {
