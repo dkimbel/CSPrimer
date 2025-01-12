@@ -176,6 +176,7 @@ impl Process {
     fn get_tree_chars(&self, is_parent: bool, child_status: ChildStatus) -> (String, usize) {
         match child_status {
             ChildStatus::NotChild => {
+                // Root node case: probably print ─┬= (but colorized)
                 let middle_tree_char = if is_parent {
                     TreeChar::RBL
                 } else {
@@ -222,7 +223,7 @@ impl Process {
                 }
 
                 // add the final tree characters, which may look like the
-                // following example (among others): └─┬─
+                // following example (but with color): └─┬=
                 let position_tree_char = match position {
                     ChildPosition::MiddleChild => TreeChar::TRB,
                     ChildPosition::LastChild => TreeChar::TR,
@@ -258,21 +259,30 @@ impl Process {
     //   - maybe have a ProcessPrinter that keeps track of max_num_process_chars for us, plus terminal
     //     width and even hashmap of parent PIDs to child processes? But, big question: how to share code
     //     between the ProcessPrinter and a ProcessSearcher used to filter for processes that match string?
-    //   - try to be guided by common arguments not having to be passed to functions, because they belong
-    //     to a relevant struct already?
+    //   - rename 'num_uncolored_chars'. It's super deceptive; many of the chars we're counting will appear
+    //     "colored" on screen. We mean 'num visible chars' or 'num non-ansi-escape chars'.
+    //   - can I split up `print_recursive`? It's quite long.
+    //   - can I clean up get_tree_chars at all? It's pretty long. (or otherwise clean up 'num ansi chars')
+    //     code, if that's still a thing?)
+    //     - maybe part of the solution: combine logic for root node and non-root? instead of hardcoding an
+    //       opening space for non-root case, just have a list of all 'child positions' (parent and self both),
+    //       and have each be a pair of ' ' + position_char.
     //   - make sure 'get root from tree' logic isn't excessively duplicated. Related... make sure I'm not
     //     unnecessarily passing root node references around. It makes me a little uncomfortable; I'd rather
     //     look up the root from the tree 'just in time'. It also makes me pass in too many params to fns.
     //     Solution: make a ProcessTree struct that has the root on its impl? Means renaming AllProcessesTree
     //     struct to something new, but probably worth it.
-    //   - add a comment on how I could have done printing in the same pass as parsing, since inputs
-    //     were pre-sorted. But just as well to keep that separate given optional filtering step.
+    //   - use a struct ('parameter grouping') to make recursive filter fn not have to take so many args.
+    //     Explain in a comment that the only args passed in are ones that affect the fn's behavior.
     //   - only do pid == pgid check one place, not two?
-    //   - can I clean up 'num ansi chars' calculation code?
     //   - instead of making PrintRecursive know our filter text (lowercased), instead have it use a
     //     HashSet of index ranges by pid, returned by our filter fn? In this case, flip the order of
     //     filter fn's first conditional! And explain importance of ordering in a comment.
     // TODO add/update comments? add missing docstrings?
+    //   - add a comment on how I could have done printing in the same pass as parsing, since inputs
+    //     were pre-sorted. But just as well to keep that separate given optional filtering step.
+    //   - is there such a thing as a module-level comment with ///? Use it for each module if so.
+    //   - more?
     // TODO Add README
     //   - featuring screenshots and noting crossterm.
     //     - screenshots to include comparison with `login` argument.
