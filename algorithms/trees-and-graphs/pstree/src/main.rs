@@ -19,7 +19,7 @@ const ROOT_PARENT_PID: usize = 0;
 /// the equals sign.
 enum TreeChar {
     RL,
-    DOUBLE_RL,
+    DoubleRL,
     RBL,
     TRB,
     TB,
@@ -31,7 +31,7 @@ impl TreeChar {
         use TreeChar::*;
         match self {
             RL => '─',
-            DOUBLE_RL => '=', // could use ═, but it's less visually distinct from ─
+            DoubleRL => '=', // could use ═, but it's less visually distinct from ─
             RBL => '┬',
             TRB => '├',
             TB => '│',
@@ -274,7 +274,7 @@ impl Process {
                     TreeChar::RL
                 };
                 let last_tree_char = if self.pid == self.pgid {
-                    TreeChar::DOUBLE_RL
+                    TreeChar::DoubleRL
                 } else {
                     TreeChar::RL
                 };
@@ -324,7 +324,7 @@ impl Process {
                     false => TreeChar::RL,
                 };
                 let last_tree_char = if self.pid == self.pgid {
-                    TreeChar::DOUBLE_RL
+                    TreeChar::DoubleRL
                 } else {
                     TreeChar::RL
                 };
@@ -368,7 +368,8 @@ impl Process {
     //   - only do pid == pgid check one place, not two?
     // TODO add/update comments? add missing docstrings?
     // TODO Add README
-    //   - featuring a screenshot and noting crossterm.
+    //   - featuring screenshots and noting crossterm.
+    //     - screenshots to include comparison with `login` argument.
     //   - noting crossterm dependency for terminal width + colorized text
     //   - describe `cargo build --release`, `./target/release/pstree`
     // TODO how to properly 'install' my own pstree on my machine, to use it from any directory? Just add an
