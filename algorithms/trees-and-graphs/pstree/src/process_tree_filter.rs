@@ -1,5 +1,4 @@
-use super::Process;
-use super::ROOT_PARENT_PID;
+use super::{Process, ROOT_PARENT_PID};
 
 use std::collections::HashMap;
 
