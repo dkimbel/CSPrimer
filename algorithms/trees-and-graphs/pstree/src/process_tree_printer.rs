@@ -182,6 +182,30 @@ impl Process {
         }
     }
 
+    /// Return a tuple with a string of 'tree chars', and the number of visible (non-ANSI-color-code)
+    /// characters in that string (where whitespace counts as 'visible'). This function describes just
+    /// a single line -- a row, or horizontal slice -- of the larger tree we'll print. Setting aside
+    /// colors, here's an example output:
+    /// (" │ │   └─┬=", 11)
+    /// In total, there are eleven visible characters there. The very last character gives information
+    /// only about this line's process; the others provide information about relationships between
+    /// processes (with a pair of characters for each relationship). Given five pairs of characters,
+    /// we're dealing with five processes, which we'll call P0 (root), P1, P2, P3, and PC ('C' for
+    /// 'current' -- the process whose line we're printing). P0 is P1's immediate parent, P1 is P2's
+    /// parent, and so on. We can break down the meaning of the characters like so:
+    /// - The initial " │" describes the relationship between P0 and P1: specifically that P1 is a
+    ///   'middle' (non-last) child of P0. After all, if P1 didn't have some siblings left beneath
+    ///   it, we wouldn't need to draw this line downwards.
+    /// - The next " │" means that P2 must be a middle child of P1.
+    /// - The following "  " means that P3 must be the LAST child of P2 -- hence there's no line to
+    ///   be drawn to a following sibling.
+    /// - The " └" shows that PC is the LAST child of P3. If there were a sibling of PC to display
+    ///   below, we'd have used " ├" instead.
+    /// - The final "─┬" means that PC itself has children; otherwise it would be "──". Note that
+    ///   we're starting to draw horizontal lines, because the current process doesn't have any
+    ///   more parents.
+    /// - Then the very last character, '=', means that PC's PID equals its PGID. (Otherwise we'd
+    ///   use '─'.)
     fn get_tree_chars(&self, is_parent: bool, child_status: ChildStatus) -> (String, usize) {
         match child_status {
             ChildStatus::NotChild => {
