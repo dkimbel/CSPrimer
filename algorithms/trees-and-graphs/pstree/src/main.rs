@@ -1,13 +1,11 @@
 use crossterm::style::{style, Color, Stylize};
 use crossterm::terminal;
-use regex::Regex;
 use std::collections::HashMap;
 use std::env;
-use std::process::Command;
-use std::sync::OnceLock;
+use std::env::Args;
 
-// Minor optimization to only compile our regex one time throughout life of program
-static PROCESS_LINE_REGEX: OnceLock<Regex> = OnceLock::new();
+mod process_tree_parser;
+
 // These are the colors our tree characters will cycle through as they become
 // increasingly nested.
 const COLORS: [Color; 3] = [Color::Yellow, Color::Red, Color::Cyan];
@@ -63,11 +61,11 @@ enum ChildStatus<'a> {
 }
 
 #[derive(Clone)]
-struct Process {
-    pid: usize,  // process ID
-    pgid: usize, // process group ID
-    user: String,
-    command: String,
+pub struct Process {
+    pub pid: usize,  // process ID
+    pub pgid: usize, // process group ID
+    pub user: String,
+    pub command: String,
 }
 
 impl PartialEq for Process {
@@ -80,37 +78,6 @@ impl PartialEq for Process {
 }
 
 impl Process {
-    /// Create a Process from a line outputted by a `ps` command using a particular format.
-    /// Return a tuple of the new Process and its parent PID. (Keeping the parent PID
-    /// separate from the struct is just a slight optimization to avoid storing extra copies
-    /// of it unnecessarily, when we put the struct into a map with parent PID as the key.)
-    fn from_ps_line(line: &str) -> (Self, usize) {
-        let re = PROCESS_LINE_REGEX
-            // example line: "root               322     1   322 /usr/libexec/keybagd -t 15"
-            .get_or_init(|| Regex::new(r"^(\w+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(.*?)$").unwrap());
-        let captures = re
-            .captures(line)
-            .expect(&format!("Failed to parse line from ps: {line}"));
-
-        let parent_pid = captures[3]
-            .parse::<usize>()
-            .expect("failed to parse ppid as integer");
-
-        (
-            Self {
-                user: captures[1].to_string(),
-                pid: captures[2]
-                    .parse::<usize>()
-                    .expect("failed to parse pid as integer"),
-                pgid: captures[4]
-                    .parse::<usize>()
-                    .expect("failed to parse pgid as integer"),
-                command: captures[5].to_string(),
-            },
-            parent_pid,
-        )
-    }
-
     /// Filter processes by the given text (case-insensitive). Matching processes _and all of
     /// their parents_ will be copied from the `all` map to the `filtered` map.
     fn filter_by_text_recursive<'proc>(
@@ -347,17 +314,11 @@ impl Process {
         }
     }
     // TODO Any refactor / code cleanup?
-    //   - could I possibly have reusable 'tree search' code that takes some kind of 'action' as an
-    //     input? that action could be 'print', or it could be 'check for text match and merge into tree'.
-    //     - could I at least have a StackSearch struct that keeps the mutable stack as an attr, and so
-    //       can easily have separate helper functions for 'handle parent pop' and 'handle print'? BUT,
-    //       I don't know how well that would work in Rust... would I have to always have mutable refs
-    //       on both lists from my helpers, preventing me from handing out an immutable ref to the
-    //       process printing fn?
+    //   TODO add a new public type from process_tree_parser for the hashmap. But... should THAT actually
+    //     be type ProcessTree? In that case, what do I rename the struct?
     //   - maybe have a ProcessPrinter that keeps track of max_num_process_chars for us, plus terminal
     //     width and even hashmap of parent PIDs to child processes? But, big question: how to share code
     //     between the ProcessPrinter and a ProcessSearcher used to filter for processes that match string?
-    //   - can I clean up 'num ansi chars' calculation code?
     //   - try to be guided by common arguments not having to be passed to functions, because they belong
     //     to a relevant struct already?
     //   - generally split out parsing of the full process list into its own function / struct?
@@ -366,6 +327,7 @@ impl Process {
     //   - add a comment on how I could have done printing in the same pass as parsing, since inputs
     //     were pre-sorted. But just as well to keep that separate given optional filtering step.
     //   - only do pid == pgid check one place, not two?
+    //   - can I clean up 'num ansi chars' calculation code?
     // TODO add/update comments? add missing docstrings?
     // TODO Add README
     //   - featuring screenshots and noting crossterm.
@@ -378,62 +340,13 @@ impl Process {
 }
 
 fn main() {
-    let args = env::args().skip(1).collect::<Vec<_>>();
-    if args.len() > 1 {
-        panic!(
-            "Only one argument is allowed; it will be used to filter the displayed processes. \
-            To filter by a phrase containing whitespace, enclose the phrase in quotation marks."
-        )
-    }
-    let filter_processes_by_text = args.get(0);
+    let filter_processes_by_text = parse_args(env::args());
 
-    let ps_stdout_bytes = Command::new("ps")
-        .args(["-axwwo", "user,pid,ppid,pgid,command"]) // same args used by real pstree, I think
-        .output()
-        .expect("ps command failed")
-        .stdout;
-    let ps_stdout = String::from_utf8(ps_stdout_bytes).expect("ps failed to output valid utf-8");
-
-    // To model a tree (graph where every child can have only one parent), we use a map
-    // of parent PID to process instance. We could do something more elaborate where each
-    // Process owns a Vec<Process> of its children, but that isn't necessary.
-    let mut all_parent_pids_to_child_processes: HashMap<usize, Vec<Process>> = HashMap::new();
-    let mut max_pid = 0;
-
-    // We use skip(1) to skip the first line, which just contains headers.
-    for ps_line in ps_stdout.lines().skip(1) {
-        let (process, parent_pid) = Process::from_ps_line(ps_line);
-        // Technically we don't HAVE to call `max`, lines are already sorted by PID.
-        max_pid = std::cmp::max(max_pid, process.pid);
-
-        all_parent_pids_to_child_processes
-            .entry(parent_pid)
-            .or_insert_with(Vec::new)
-            .push(process);
-    }
-
-    // We'll want to left-pad every printed PID with zeroes until it matches the length
-    // of the largest PID.
-    let max_num_pid_chars = format!("{max_pid}").len();
-
-    let terminal_width = terminal::size()
-        .expect("Failed to find terminal's dimensions")
-        .0 as usize;
-
-    // The root process will always be the only child of a special parent PID.
-    let root_process_list: &Vec<Process> = &all_parent_pids_to_child_processes
-        .get(&ROOT_PARENT_PID)
-        .expect("A root process with parent pid 0 must exist");
-
-    assert!(
-        root_process_list.len() == 1,
-        "There can only be one root process",
-    );
-
-    let all_processes_root = &root_process_list[0];
-    let filter_processes_by_text_lowercase = filter_processes_by_text.map(|s| s.to_lowercase());
+    let all_processes_tree = process_tree_parser::execute_ps_and_parse();
+    let all_processes_root = &all_processes_tree.get_root();
 
     // If we were given text to filter processes by, create a new filtered tree.
+    let filter_processes_by_text_lowercase = filter_processes_by_text.map(|s| s.to_lowercase());
     let parent_pids_to_child_processes =
         if let Some(filter_text) = &filter_processes_by_text_lowercase {
             let mut filtered_parent_pids_to_child_processes = HashMap::new();
@@ -443,14 +356,18 @@ fn main() {
                 all_processes_root,
                 &filter_text,
                 &parents,
-                &all_parent_pids_to_child_processes,
+                &all_processes_tree.all_parent_pids_to_child_processes,
                 &mut filtered_parent_pids_to_child_processes,
                 false,
             );
             filtered_parent_pids_to_child_processes
         } else {
-            all_parent_pids_to_child_processes
+            all_processes_tree.all_parent_pids_to_child_processes
         };
+
+    let terminal_width = terminal::size()
+        .expect("Failed to find terminal's dimensions")
+        .0 as usize;
 
     if let Some(root) = &parent_pids_to_child_processes
         .get(&ROOT_PARENT_PID)
@@ -462,11 +379,23 @@ fn main() {
         // a root to start recursing from.
         Process::print_recursive(
             root,
-            max_num_pid_chars,
+            all_processes_tree.max_num_pid_chars,
             terminal_width,
             ChildStatus::NotChild,
             &parent_pids_to_child_processes,
             filter_processes_by_text_lowercase.as_deref(),
         );
     }
+}
+
+fn parse_args(args: Args) -> Option<String> {
+    let mut skipped = args.skip(1); // skip zeroth arg, which is path to program
+    let filter_processes_by_text = skipped.next();
+    if skipped.next().is_some() {
+        panic!(
+            "Only one argument is allowed; it will be used to filter the displayed processes. \
+            To filter by a phrase containing whitespace, enclose the phrase in quotation marks."
+        )
+    }
+    filter_processes_by_text
 }
