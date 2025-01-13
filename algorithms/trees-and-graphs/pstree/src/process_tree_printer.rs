@@ -19,18 +19,16 @@ pub fn print(
     {
         // Print our tree of processes -- either all of them, or all that remain after
         // filtering. In principle we always want to do this, but it's nested in a conditional
-        // because we could have filtered out _everything_. In that case there isn't even
-        // a root to start recursing from.
-        Process::print_recursive(
-            root,
+        // because we could have filtered out _everything_.
+        ProcessTreePrinter {
             max_num_pid_chars,
             terminal_width,
-            Vec::new(),
-            &parent_pids_to_child_processes,
-            filter_processes_by_text
+            parent_pids_to_child_processes: &parent_pids_to_child_processes,
+            maybe_filter_text: filter_processes_by_text
                 .map(|s| s.to_lowercase())
                 .as_deref(),
-        );
+        }
+        .print_recursive(root, Vec::new());
     }
 }
 
@@ -74,11 +72,19 @@ impl TreeChar {
     }
 }
 
-impl Process {
+// struct to capture information we need when recursively printing lines, that does NOT differ
+// between recursive calls
+struct ProcessTreePrinter<'a, 'b> {
+    max_num_pid_chars: usize,
+    terminal_width: usize,
+    parent_pids_to_child_processes: &'a HashMap<usize, Vec<Process>>,
+    maybe_filter_text: Option<&'b str>,
+}
+
+impl<'a, 'b> ProcessTreePrinter<'a, 'b> {
     fn print_recursive(
         &self,
-        max_num_pid_chars: usize,
-        terminal_width: usize,
+        process: &Process,
         // Each process must know the 'child position' of ALL of its parents relative to their
         // parent, and its own 'child position' relative to its own parent. This vec is ordered
         // left-to-right starting from the root process. Given a current process 'PC' that has two
@@ -86,18 +92,21 @@ impl Process {
         // the 'child position' of P1 relative to P0, and the second gives the 'child position' of
         // PC relative to P1.
         parent_to_self_child_positions: Vec<ChildPosition>,
-        parent_pids_to_child_processes: &HashMap<usize, Vec<Process>>,
-        maybe_filter_text: Option<&str>,
     ) {
-        let maybe_children = parent_pids_to_child_processes.get(&self.pid);
+        let Self {
+            max_num_pid_chars,
+            terminal_width,
+            parent_pids_to_child_processes,
+            maybe_filter_text,
+        } = self;
+        let maybe_children = parent_pids_to_child_processes.get(&process.pid);
         let is_parent = maybe_children.is_some_and(|children| !children.is_empty());
 
-        // Do the actual printing
         let (tree_chars, num_visible_tree_chars) =
-            self.get_tree_chars(is_parent, &parent_to_self_child_positions);
-        let Self {
+            process.get_tree_chars(is_parent, &parent_to_self_child_positions);
+        let Process {
             pid, user, command, ..
-        } = self;
+        } = process;
         let formatted_pid = format!("{pid:0max_num_pid_chars$}");
         // We add 3 to deal with whitespace we added between different pieces of text. Meanwhile,
         // we assume text will be ASCII and so use len() instead of .chars().count().
@@ -145,18 +154,13 @@ impl Process {
                 };
                 let mut new_parent_to_self_child_positions = parent_to_self_child_positions.clone();
                 new_parent_to_self_child_positions.push(child_position);
-                Self::print_recursive(
-                    child_process,
-                    max_num_pid_chars,
-                    terminal_width,
-                    new_parent_to_self_child_positions,
-                    parent_pids_to_child_processes,
-                    maybe_filter_text,
-                );
+                self.print_recursive(child_process, new_parent_to_self_child_positions);
             }
         }
     }
+}
 
+impl Process {
     /// Return a tuple with a string of 'tree chars', and the number of visible (non-ANSI-color-code)
     /// characters in that string (where whitespace counts as 'visible'). This function describes just
     /// a single line -- a row, or horizontal slice -- of the larger tree we'll print. Setting aside

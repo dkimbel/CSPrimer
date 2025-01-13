@@ -6,18 +6,18 @@ mod process_tree_parser;
 mod process_tree_printer;
 
 // TODO Any refactor / code cleanup?
-//   - use parameter grouping for recursive print? maybe? can I otherwise split it up?
 //   - use a struct ('parameter grouping') to make recursive filter fn not have to take so many args.
 //     Explain in a comment that the only args passed in are ones that affect the fn's behavior.
-//   - instead of making PrintRecursive know our filter text (lowercased), instead have it use a
-//     HashSet of index ranges by pid, returned by our filter fn? In this case, flip the order of
-//     filter fn's first conditional! And explain importance of ordering in a comment.
 //   - make sure 'get root from tree' logic isn't excessively duplicated. Related... make sure I'm not
 //     unnecessarily passing root node references around. It makes me a little uncomfortable; I'd rather
 //     look up the root from the tree 'just in time'. It also makes me pass in too many params to fns.
 //     Solution: make a ProcessTree struct that has the root on its impl? Means renaming AllProcessesTree
 //     struct to something new, but probably worth it.
-//   - only do pid == pgid check one place, not two?
+//     - given a change here, make ProcessTreePrinter have a print_tree fn that rigures out root node
+//       for itself.
+//   - instead of making PrintRecursive know our filter text (lowercased), instead have it use a
+//     HashSet of index ranges by pid, returned by our filter fn? In this case, flip the order of
+//     filter fn's first conditional! And explain importance of ordering in a comment.
 //   - any opportunities to leverage let/else?
 // TODO add/update comments? add missing docstrings?
 //   - add a comment on how I could have done printing in the same pass as parsing, since inputs
