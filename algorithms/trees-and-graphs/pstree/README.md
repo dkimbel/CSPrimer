@@ -16,8 +16,6 @@ $ cargo install --path .
 $ color-pstree
 ```
 
-## Screenshots
+## Side-by-side with pstree
 
-![Filtering by 'login', in comparison to the real pstree](./images/filter_by_login.png)
-
-![Middle portion of a large tree](./images/fullscreen.png)
+![Filtering by 'login', side-by-side with the real pstree](./images/filter_by_login.png)
