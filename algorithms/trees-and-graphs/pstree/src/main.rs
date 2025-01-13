@@ -5,35 +5,6 @@ mod process_tree_filter;
 mod process_tree_parser;
 mod process_tree_printer;
 
-// TODO Any refactor / code cleanup?
-//   - use a struct ('parameter grouping') to make recursive filter fn not have to take so many args.
-//     Explain in a comment that the only args passed in are ones that affect the fn's behavior.
-//   - make sure 'get root from tree' logic isn't excessively duplicated. Related... make sure I'm not
-//     unnecessarily passing root node references around. It makes me a little uncomfortable; I'd rather
-//     look up the root from the tree 'just in time'. It also makes me pass in too many params to fns.
-//     Solution: make a ProcessTree struct that has the root on its impl? Means renaming AllProcessesTree
-//     struct to something new, but probably worth it.
-//     - given a change here, make ProcessTreePrinter have a print_tree fn that rigures out root node
-//       for itself.
-//   - instead of making PrintRecursive know our filter text (lowercased), instead have it use a
-//     HashSet of index ranges by pid, returned by our filter fn? In this case, flip the order of
-//     filter fn's first conditional! And explain importance of ordering in a comment.
-//   - any opportunities to leverage let/else?
-// TODO add/update comments? add missing docstrings?
-//   - add a comment on how I could have done printing in the same pass as parsing, since inputs
-//     were pre-sorted. But just as well to keep that separate given optional filtering step.
-//   - add moule-level comments with `//!`
-//   - more?
-// TODO Add README
-//   - featuring screenshots and noting crossterm.
-//     - screenshots to include comparison with `login` argument.
-//   - emphasize that this is a re-implementation of pstree, maintaining the most important features to
-//     me and adding color
-//   - noting crossterm dependency for terminal width + colorized text
-//   - describe `cargo build --release`, `./target/release/pstree`
-// TODO how to properly 'install' my own pstree on my machine, to use it from any directory? Just add an
-//   alias to ./Users/dk/Workspace/cs-primer/algorithms/trees-and-graphs/pstree/target/release/pstree?
-// TODO Submit, mentioning screenshot in README or direct-linking it; also note crossterm for width/colors
 fn main() {
     // Optionally, the caller will have given us a string to filter processes by.
     let filter_processes_by_text = parse_args(env::args());

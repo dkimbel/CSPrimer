@@ -72,8 +72,8 @@ impl TreeChar {
     }
 }
 
-// struct to capture information we need when recursively printing lines, that does NOT differ
-// between recursive calls
+/// Struct to capture arguments that we need when recursively printing lines, that do
+/// NOT differ between recursive calls.
 struct ProcessTreePrinter<'a, 'b> {
     max_num_pid_chars: usize,
     terminal_width: usize,

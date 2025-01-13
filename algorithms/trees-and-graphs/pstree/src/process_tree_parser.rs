@@ -28,6 +28,9 @@ fn parse(ps_output: String) -> AllProcessesTree {
     // To model a tree (graph where every child can have only one parent), we use a map
     // of parent PID to process instance. We could do something more elaborate where each
     // Process owns a Vec<Process> of its children, but that isn't necessary.
+    // NOTE: technically, we could print the tree line-by-line as we parse it; `ps` will
+    // give us perfectly-ordered processes. However, that wouldn't play well with the
+    // filtering that we sometimes want to do between parsing and printing.
     let mut all_parent_pids_to_child_processes: HashMap<usize, Vec<Process>> = HashMap::new();
     let mut max_pid = 0;
 
