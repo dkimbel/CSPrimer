@@ -187,25 +187,26 @@ impl Process {
     /// a single line -- a row, or horizontal slice -- of the larger tree we'll print. Setting aside
     /// colors, here's an example output:
     /// (" │ │   └─┬=", 11)
-    /// In total, there are eleven visible characters there. The very last character gives information
-    /// only about this line's process; the others provide information about relationships between
-    /// processes (with a pair of characters for each relationship). Given five pairs of characters,
-    /// we're dealing with five processes, which we'll call P0 (root), P1, P2, P3, and PC ('C' for
-    /// 'current' -- the process whose line we're printing). P0 is P1's immediate parent, P1 is P2's
-    /// parent, and so on. We can break down the meaning of the characters like so:
+    /// In total, there are eleven visible characters there. We can call the first eight "child
+    /// positional" chars: they form four pairs of characters, where each pair describes the position
+    /// of a child relative to its parent. (That position may be 'last child' or 'middle' aka 'non-
+    /// last.) Since there are four pairs of positional characters, we're dealing with four parents:
+    /// P0 (root), its child P1, its child P2, and its child P3. In turn, P3 is the direct parent
+    /// of the process whose line we're printing right now (we'll call it 'PC', 'C' for 'current').
+    /// Lets break those eight 'positional' chars down:
     /// - The initial " │" describes the relationship between P0 and P1: specifically that P1 is a
     ///   'middle' (non-last) child of P0. After all, if P1 didn't have some siblings left beneath
     ///   it, we wouldn't need to draw this line downwards.
     /// - The next " │" means that P2 must be a middle child of P1.
     /// - The following "  " means that P3 must be the LAST child of P2 -- hence there's no line to
     ///   be drawn to a following sibling.
-    /// - The " └" shows that PC is the LAST child of P3. If there were a sibling of PC to display
-    ///   below, we'd have used " ├" instead.
-    /// - The final "─┬" means that PC itself has children; otherwise it would be "──". Note that
-    ///   we're starting to draw horizontal lines, because the current process doesn't have any
-    ///   more parents.
-    /// - Then the very last character, '=', means that PC's PID equals its PGID. (Otherwise we'd
-    ///   use '─'.)
+    /// - The final " └" shows that PC is the LAST child of P3. If there were a sibling of PC to
+    ///   display below, we'd have used " ├" instead.
+    /// After those "child positional" chars come three final characters, which describe PC (and
+    /// indicate whether it has any children itself).
+    /// - The first of these final chars is always '─'.
+    /// - The second will be '┬' if PC has children (to point down to them), else '─'.
+    /// - The third/last will be '=' if PC's PID equals its PGID, else '─'.
     fn get_tree_chars(&self, is_parent: bool, child_status: ChildStatus) -> (String, usize) {
         match child_status {
             ChildStatus::NotChild => {
