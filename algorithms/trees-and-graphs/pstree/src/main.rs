@@ -6,16 +6,9 @@ mod process_tree_parser;
 mod process_tree_printer;
 
 // TODO Any refactor / code cleanup?
-//   - can I clean up get_tree_chars at all? It's pretty long. (or otherwise clean up 'num ansi chars')
-//     code, if that's still a thing?)
-//     - maybe part of the solution: combine logic for root node and non-root? instead of hardcoding an
-//       opening space for non-root case, just have a list of all 'child positions' (parent and self both),
-//       and have each be a pair of ' ' + position_char.
-//     - split any new comment explaining this into two, and put those docstrings atop the relevant helpers?
-//       (having first refactored out helper functions for 'relationship' and 'self' chars)
-//   - rename 'num_uncolored_chars'. It's super deceptive; many of the chars we're counting will appear
-//     "colored" on screen. We mean 'num visible chars' or 'num non-ansi-escape chars'.
-//   - can I split up `print_recursive`? It's quite long.
+//   - If all I'm doing with the not-in-vec ChildPosition is _adding it to the end of a new iterator after
+//     the vec_, then just use a single vec instead.
+//   - use parameter grouping for recursive print? maybe? can I otherwise split it up?
 //   - use a struct ('parameter grouping') to make recursive filter fn not have to take so many args.
 //     Explain in a comment that the only args passed in are ones that affect the fn's behavior.
 //   - instead of making PrintRecursive know our filter text (lowercased), instead have it use a

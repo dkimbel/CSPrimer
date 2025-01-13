@@ -193,7 +193,7 @@ impl Process {
     /// last.) Since there are four pairs of positional characters, we're dealing with four parents:
     /// P0 (root), its child P1, its child P2, and its child P3. In turn, P3 is the direct parent
     /// of the process whose line we're printing right now (we'll call it 'PC', 'C' for 'current').
-    /// Lets break those eight 'positional' chars down:
+    /// Lets break down those eight 'child positional' chars, " │ │   └":
     /// - The initial " │" describes the relationship between P0 and P1: specifically that P1 is a
     ///   'middle' (non-last) child of P0. After all, if P1 didn't have some siblings left beneath
     ///   it, we wouldn't need to draw this line downwards.
@@ -208,85 +208,70 @@ impl Process {
     /// - The second will be '┬' if PC has children (to point down to them), else '─'.
     /// - The third/last will be '=' if PC's PID equals its PGID, else '─'.
     fn get_tree_chars(&self, is_parent: bool, child_status: ChildStatus) -> (String, usize) {
-        match child_status {
-            ChildStatus::NotChild => {
-                // Root node case: probably print ─┬= (but colorized)
-                let middle_tree_char = if is_parent {
-                    TreeChar::RBL
-                } else {
-                    TreeChar::RL
-                };
-                let last_tree_char = if self.pid == self.pgid {
-                    TreeChar::DoubleRL
-                } else {
-                    TreeChar::RL
-                };
-                let s = [TreeChar::RL, middle_tree_char, last_tree_char]
-                    .iter()
-                    .map(|tc| tc.to_char())
-                    .collect::<String>();
-                let styled = style(&s).with(COLORS[0]).to_string();
-                (styled, s.len())
-            }
+        let mut colors_i = 0; // the tree will cycle through multiple colors based on this index
+        let mut num_visible_chars: usize = 0;
+
+        // First off, assemble a starter string with any 'child positional' characters.
+        let mut s = match child_status {
+            ChildStatus::NotChild => String::new(),
             ChildStatus::IsChild {
                 position,
                 non_root_parent_child_positions,
             } => {
-                let mut s = String::from(' ');
-                let mut num_uncolored_chars: usize = 1;
-                let mut colors_i: usize = 0;
+                let mut s = String::new();
 
-                // We need to indent this Process further based on how many parents
-                // it has. We might also need to draw some top-to-bottom lines on
-                // behalf of those parents, to reach their further-down siblings.
-                for parent_child_position in non_root_parent_child_positions {
-                    let position_char = match parent_child_position {
-                        ChildPosition::MiddleChild => TreeChar::TB.to_char(),
-                        ChildPosition::LastChild => ' ',
+                let num_positions = non_root_parent_child_positions.len() + 1;
+                for (position_i, position) in non_root_parent_child_positions
+                    .iter()
+                    .chain(std::iter::once(&position))
+                    .enumerate()
+                {
+                    let child_is_current_process = position_i == num_positions - 1;
+                    let position_char = match (position, child_is_current_process) {
+                        (ChildPosition::MiddleChild, false) => TreeChar::TB.to_char(),
+                        (ChildPosition::LastChild, false) => ' ',
+                        (ChildPosition::MiddleChild, true) => TreeChar::TRB.to_char(),
+                        (ChildPosition::LastChild, true) => TreeChar::TR.to_char(),
                     };
                     let mut unstyled = String::new();
-                    unstyled.push(position_char);
                     unstyled.push(' ');
-                    num_uncolored_chars += 2;
+                    unstyled.push(position_char);
                     let styled = style(unstyled)
                         .with(COLORS[colors_i % COLORS.len()])
                         .to_string();
                     s.extend(styled.chars());
+                    num_visible_chars += 2;
 
-                    colors_i += 1;
+                    // don't do an extra color change when we're stopping iteration; we
+                    // want the final characters to match the color we were just using
+                    if !child_is_current_process {
+                        colors_i += 1;
+                    }
                 }
-
-                // add the final tree characters, which may look like the
-                // following example (but with color): └─┬=
-                let position_tree_char = match position {
-                    ChildPosition::MiddleChild => TreeChar::TRB,
-                    ChildPosition::LastChild => TreeChar::TR,
-                };
-                let branch_to_children_tree_char = match is_parent {
-                    true => TreeChar::RBL,
-                    false => TreeChar::RL,
-                };
-                let last_tree_char = if self.pid == self.pgid {
-                    TreeChar::DoubleRL
-                } else {
-                    TreeChar::RL
-                };
-                let final_chars = [
-                    position_tree_char,
-                    TreeChar::RL,
-                    branch_to_children_tree_char,
-                    last_tree_char,
-                ]
-                .map(|tc| tc.to_char())
-                .iter()
-                .collect::<String>();
-                num_uncolored_chars += 4;
-                let final_chars_styled = style(final_chars)
-                    .with(COLORS[colors_i % COLORS.len()])
-                    .to_string();
-                s.extend(final_chars_styled.chars());
-                (s, num_uncolored_chars)
+                s
             }
-        }
+        };
+
+        // Add the final 'current process' chars, which may look like the following
+        // example (but with color): ─┬=
+        let branch_to_children_tree_char = match is_parent {
+            true => TreeChar::RBL,
+            false => TreeChar::RL,
+        };
+        let last_tree_char = if self.pid == self.pgid {
+            TreeChar::DoubleRL
+        } else {
+            TreeChar::RL
+        };
+        let final_chars = [TreeChar::RL, branch_to_children_tree_char, last_tree_char]
+            .map(|tc| tc.to_char())
+            .iter()
+            .collect::<String>();
+        num_visible_chars += 3;
+        let final_chars_styled = style(final_chars)
+            .with(COLORS[colors_i % COLORS.len()])
+            .to_string();
+        s.extend(final_chars_styled.chars());
+        (s, num_visible_chars)
     }
 }
