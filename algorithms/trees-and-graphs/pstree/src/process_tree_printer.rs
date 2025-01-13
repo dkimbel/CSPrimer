@@ -25,7 +25,7 @@ pub fn print(
             root,
             max_num_pid_chars,
             terminal_width,
-            ChildStatus::NotChild,
+            Vec::new(),
             &parent_pids_to_child_processes,
             filter_processes_by_text
                 .map(|s| s.to_lowercase())
@@ -36,24 +36,11 @@ pub fn print(
 
 // Any given Process's ChildPosition is that process's position relative to its own immediate
 // parent. So if Process id 10 is the third of four children of Process id 2, then Process id
-// 10 is a MiddleChild. Process id 10 may or may not have children of its own -- that isn't
-// relevant here.
+// 10 is a MiddleChild. Process id 10 may or may not have children of its own; it doesn't matter.
 #[derive(Clone, Copy, PartialEq)]
 pub enum ChildPosition {
     MiddleChild, // includes first child
     LastChild,
-}
-
-// Formulated to "make illegal state unrepresentable" -- there is no way to represent any
-// given Process as not being a child, yet having parents.
-#[derive(Clone, Copy)]
-pub enum ChildStatus<'a> {
-    NotChild,
-    IsChild {
-        position: ChildPosition,
-        // if this is empty, then the relevant process only has one parent: the root.
-        non_root_parent_child_positions: &'a Vec<ChildPosition>,
-    },
 }
 
 // These are the colors our tree characters will cycle through as they become
@@ -92,7 +79,13 @@ impl Process {
         &self,
         max_num_pid_chars: usize,
         terminal_width: usize,
-        child_status: ChildStatus,
+        // Each process must know the 'child position' of ALL of its parents relative to their
+        // parent, and its own 'child position' relative to its own parent. This vec is ordered
+        // left-to-right starting from the root process. Given a current process 'PC' that has two
+        // parents, P0 (root) and P1, this list would have two elements. The first element gives
+        // the 'child position' of P1 relative to P0, and the second gives the 'child position' of
+        // PC relative to P1.
+        parent_to_self_child_positions: Vec<ChildPosition>,
         parent_pids_to_child_processes: &HashMap<usize, Vec<Process>>,
         maybe_filter_text: Option<&str>,
     ) {
@@ -100,7 +93,8 @@ impl Process {
         let is_parent = maybe_children.is_some_and(|children| !children.is_empty());
 
         // Do the actual printing
-        let (tree_chars, num_visible_tree_chars) = self.get_tree_chars(is_parent, child_status);
+        let (tree_chars, num_visible_tree_chars) =
+            self.get_tree_chars(is_parent, &parent_to_self_child_positions);
         let Self {
             pid, user, command, ..
         } = self;
@@ -141,40 +135,21 @@ impl Process {
 
         // recursively print all children of the current process
         if let Some(children) = maybe_children {
-            // Each process must know the 'child position' of ALL of its parents, to know
-            // whether to print whitespace/indentation (parent was a last child) or a
-            // top-to-bottom char (parent was a middle child, and so has more processes
-            // below it at the same indentation level). To support this need, maintain
-            // a running list of parent 'child positions'.
-            let non_root_parent_child_positions: Vec<ChildPosition> = match child_status {
-                ChildStatus::NotChild => Vec::new(),
-                ChildStatus::IsChild {
-                    position,
-                    non_root_parent_child_positions,
-                } => {
-                    let mut v = non_root_parent_child_positions.clone();
-                    v.push(position);
-                    v
-                }
-            };
-
             for (i, child_process) in children.iter().enumerate() {
                 // The child needs to know whether it is itself a 'middle' or 'last' child;
                 // this affects the tree chars it prints.
-                let childs_child_position = if i + 1 == children.len() {
+                let child_position = if i + 1 == children.len() {
                     ChildPosition::LastChild
                 } else {
                     ChildPosition::MiddleChild
                 };
-                let childs_child_status = ChildStatus::IsChild {
-                    position: childs_child_position,
-                    non_root_parent_child_positions: &non_root_parent_child_positions,
-                };
+                let mut new_parent_to_self_child_positions = parent_to_self_child_positions.clone();
+                new_parent_to_self_child_positions.push(child_position);
                 Self::print_recursive(
                     child_process,
                     max_num_pid_chars,
                     terminal_width,
-                    childs_child_status,
+                    new_parent_to_self_child_positions,
                     parent_pids_to_child_processes,
                     maybe_filter_text,
                 );
@@ -207,50 +182,39 @@ impl Process {
     /// - The first of these final chars is always '─'.
     /// - The second will be '┬' if PC has children (to point down to them), else '─'.
     /// - The third/last will be '=' if PC's PID equals its PGID, else '─'.
-    fn get_tree_chars(&self, is_parent: bool, child_status: ChildStatus) -> (String, usize) {
+    fn get_tree_chars(
+        &self,
+        is_parent: bool,
+        parent_to_self_child_positions: &Vec<ChildPosition>,
+    ) -> (String, usize) {
         let mut colors_i = 0; // the tree will cycle through multiple colors based on this index
         let mut num_visible_chars: usize = 0;
+        let mut s = String::new();
 
-        // First off, assemble a starter string with any 'child positional' characters.
-        let mut s = match child_status {
-            ChildStatus::NotChild => String::new(),
-            ChildStatus::IsChild {
-                position,
-                non_root_parent_child_positions,
-            } => {
-                let mut s = String::new();
+        // First off, add any 'child positional' characters to our empty starter string.
+        for (position_i, position) in parent_to_self_child_positions.iter().enumerate() {
+            let child_is_current_process = position_i == parent_to_self_child_positions.len() - 1;
+            let position_char = match (position, child_is_current_process) {
+                (ChildPosition::MiddleChild, false) => TreeChar::TB.to_char(),
+                (ChildPosition::LastChild, false) => ' ',
+                (ChildPosition::MiddleChild, true) => TreeChar::TRB.to_char(),
+                (ChildPosition::LastChild, true) => TreeChar::TR.to_char(),
+            };
+            let mut unstyled = String::new();
+            unstyled.push(' ');
+            unstyled.push(position_char);
+            let styled = style(unstyled)
+                .with(COLORS[colors_i % COLORS.len()])
+                .to_string();
+            s.extend(styled.chars());
+            num_visible_chars += 2;
 
-                let num_positions = non_root_parent_child_positions.len() + 1;
-                for (position_i, position) in non_root_parent_child_positions
-                    .iter()
-                    .chain(std::iter::once(&position))
-                    .enumerate()
-                {
-                    let child_is_current_process = position_i == num_positions - 1;
-                    let position_char = match (position, child_is_current_process) {
-                        (ChildPosition::MiddleChild, false) => TreeChar::TB.to_char(),
-                        (ChildPosition::LastChild, false) => ' ',
-                        (ChildPosition::MiddleChild, true) => TreeChar::TRB.to_char(),
-                        (ChildPosition::LastChild, true) => TreeChar::TR.to_char(),
-                    };
-                    let mut unstyled = String::new();
-                    unstyled.push(' ');
-                    unstyled.push(position_char);
-                    let styled = style(unstyled)
-                        .with(COLORS[colors_i % COLORS.len()])
-                        .to_string();
-                    s.extend(styled.chars());
-                    num_visible_chars += 2;
-
-                    // don't do an extra color change when we're stopping iteration; we
-                    // want the final characters to match the color we were just using
-                    if !child_is_current_process {
-                        colors_i += 1;
-                    }
-                }
-                s
+            // don't do an extra color change when we're stopping iteration; we
+            // want the final characters to match the color we were just using
+            if !child_is_current_process {
+                colors_i += 1;
             }
-        };
+        }
 
         // Add the final 'current process' chars, which may look like the following
         // example (but with color): ─┬=

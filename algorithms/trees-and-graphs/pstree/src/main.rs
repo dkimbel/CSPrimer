@@ -6,8 +6,6 @@ mod process_tree_parser;
 mod process_tree_printer;
 
 // TODO Any refactor / code cleanup?
-//   - If all I'm doing with the not-in-vec ChildPosition is _adding it to the end of a new iterator after
-//     the vec_, then just use a single vec instead.
 //   - use parameter grouping for recursive print? maybe? can I otherwise split it up?
 //   - use a struct ('parameter grouping') to make recursive filter fn not have to take so many args.
 //     Explain in a comment that the only args passed in are ones that affect the fn's behavior.
