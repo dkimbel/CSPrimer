@@ -11,6 +11,8 @@ Despite the complexity introduced by ANSI color codes, the visible text still pe
 
 ## Usage
 
+This assumes that you've cloned this repository and changed into the base directory for this Rust package.
+
 ```bash
 $ cargo install --path .
 $ color-pstree
