@@ -170,9 +170,9 @@ impl Process {
     /// positional" chars: they form four pairs of characters, where each pair describes the position
     /// of a child relative to its parent. (That position may be 'last child' or 'middle' aka 'non-
     /// last.) Since there are four pairs of positional characters, we're dealing with four parents:
-    /// P0 (root), its child P1, its child P2, and its child P3. In turn, P3 is the direct parent
+    /// P0 (root), P0's child P1, P1's child P2, and P2's child P3. In turn, P3 is the direct parent
     /// of the process whose line we're printing right now (we'll call it 'PC', 'C' for 'current').
-    /// Lets break down those eight 'child positional' chars, " │ │   └":
+    /// Let's break down those eight 'child positional' chars, " │ │   └":
     /// - The initial " │" describes the relationship between P0 and P1: specifically that P1 is a
     ///   'middle' (non-last) child of P0. After all, if P1 didn't have some siblings left beneath
     ///   it, we wouldn't need to draw this line downwards.

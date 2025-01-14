@@ -23,7 +23,7 @@ pub fn run(
 
 impl Process {
     /// Filter processes by the given text (case-insensitive). Matching processes _and all of
-    /// their parents_ will be copied from the `all` map to the `filtered` map.
+    /// their parents and children_ will be copied from the `all` map to the `filtered` map.
     fn filter_by_text_recursive<'proc>(
         &self,
         lowercased_filter_text: &str,
