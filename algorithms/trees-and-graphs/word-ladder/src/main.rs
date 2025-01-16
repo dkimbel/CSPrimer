@@ -124,20 +124,27 @@ fn make_wildcard_word_lookup(
 fn validate_args(args: env::Args) -> (String, String) {
     let mut args = args.skip(1);
     let start_word = args.next().map(|w| w.to_lowercase()).unwrap_or_else(|| {
-        eprint!("{}", USAGE_INSTRUCTIONS.red());
+        eprintln!("{}", USAGE_INSTRUCTIONS.red());
         process::exit(1)
     });
     let end_word = args.next().map(|w| w.to_lowercase()).unwrap_or_else(|| {
-        eprint!("{}", USAGE_INSTRUCTIONS.red());
+        eprintln!("{}", USAGE_INSTRUCTIONS.red());
         process::exit(1)
     });
+    if args.next().is_some() {
+        eprintln!(
+            "{}",
+            "Please only provide two words as inputs: the starting word and ending word.".red()
+        );
+        process::exit(1)
+    }
     let word_len = start_word.len(); // really assuming ASCII here: one byte per char
     if word_len > 5 || word_len < 3 || word_len != end_word.len() {
-        eprint!("{}", USAGE_INSTRUCTIONS.red());
+        eprintln!("{}", USAGE_INSTRUCTIONS.red());
         process::exit(1)
     }
     if start_word == end_word {
-        eprint!(
+        eprintln!(
             "{}",
             "The starting and ending word must be different from each other.".red()
         );
