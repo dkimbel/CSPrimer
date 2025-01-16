@@ -20,6 +20,16 @@ fn main() {
     }
 }
 
+/// Use breadth-first search to find the shortest path between the start and end word. If no
+/// path can be found, return None. Otherwise return Some(path), where path is a list of all
+/// visited words (including start and end).
+/// This search is powered by our "wildcard words". If our currently-visited word is "tea",
+/// we'll transform that into ["*ea", "t*a", "te*"], then look up all words that matched
+/// those wildcards. We'll push all those words onto our queue, to be visited later.
+/// This function also keeps track of words that have been visited already, and refuses to
+/// visit the same word twice -- not only within a single path, but globally for the entire
+/// search. Since we're going breadth-first, if ANY of our searches have already included a
+/// word, it cannot be worth revisiting.
 fn find_shortest_path<'a, 'b>(
     start_word: &'a str,
     end_word: &'a str,
@@ -52,6 +62,9 @@ where
     None
 }
 
+/// Construct a list of "wildcard words" that would match the given word.
+/// Example input: "piano"
+/// Example output: ["*iano", "p*ano", "pi*no", "pia*o", "pian*"]
 fn make_wildcard_words(word: &str) -> Vec<String> {
     (0..word.len())
         .map(|i| {
@@ -63,6 +76,9 @@ fn make_wildcard_words(word: &str) -> Vec<String> {
         .collect::<Vec<String>>()
 }
 
+/// Build a map of "wildcard words" to collections of words from our built-in word list.
+/// Here's how one key-value pair might look, where the key is the "wildcard word":
+/// "*ish" => ["fish", "wish"]
 fn make_wildcard_word_lookup(word_len: usize) -> HashMap<String, Vec<&'static str>> {
     let unsplit_words = match word_len {
         3 => THREE_LETTER_WORDS,
@@ -123,6 +139,3 @@ fn report_failure(start_word: &str, end_word: &str) {
     let failure_announcement = format!("No path found between '{start_word}' and '{end_word}'.");
     println!("{}", failure_announcement.red());
 }
-
-// TODO add comments / docstrings
-// TODO update readme, incl note on how we don't validate that worsd are in dictionary

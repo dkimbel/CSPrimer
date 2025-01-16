@@ -1,5 +1,13 @@
 # Word Ladder
 
+Breadth-first search to find a path from a given 'start word' to a given 'end word', where:
+
+- We only change one letter at a time.
+- Every 'word' we use must be an actual English word (per our starting word list file).
+
+At least for now, we're only supporting words of length 3, 4, and 5. The start and end word
+must be the same length.
+
 ## `split-word-list` helper script
 
 Besides the main program, my Rust crate contains a helper binary that operates on the `words.txt` dictionary
