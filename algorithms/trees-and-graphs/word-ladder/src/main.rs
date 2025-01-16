@@ -1,46 +1,22 @@
 use colored::Colorize;
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::env;
+use std::process;
 
 const THREE_LETTER_WORDS: &str = include_str!("../resources/three_letter_words.txt");
 const FOUR_LETTER_WORDS: &str = include_str!("../resources/four_letter_words.txt");
 const FIVE_LETTER_WORDS: &str = include_str!("../resources/five_letter_words.txt");
 
+const USAGE_INSTRUCTIONS: &str = "Please provide two words as arguments. The words should have the same length, between 3 and 5 characters each.";
+
 fn main() {
-    let start_word = "wheat";
-    let end_word = "bread";
-    let word_len = 5;
+    let (start_word, end_word) = validate_args(env::args());
+    let wildcard_word_lookup = make_wildcard_word_lookup(start_word.len());
 
-    let mut word_wildcard_lookups: HashMap<String, Vec<&str>> = HashMap::new();
-
-    let unsplit_words = match word_len {
-        3 => THREE_LETTER_WORDS,
-        4 => FOUR_LETTER_WORDS,
-        5 => FIVE_LETTER_WORDS,
-        _ => panic!(
-            "Words with {word_len} letters are not supported! Please use between 3 and 5 letters."
-        ),
-    };
-    for word in unsplit_words.lines() {
-        for wildcard_word in make_wildcard_words(word) {
-            word_wildcard_lookups
-                .entry(wildcard_word)
-                .or_insert_with(Vec::new)
-                .push(word);
-        }
-    }
-
-    // print results to stdout (even in failure case... though arguably that should be stderr)
-    if let Some(shortest_path) = find_shortest_path(start_word, end_word, word_wildcard_lookups) {
-        let num_steps = shortest_path.len() - 1;
-        let success_announcement =
-            format!("Found ladder from '{start_word}' to '{end_word}' in {num_steps} steps!");
-        let formatted_steps = shortest_path.join(" -> ");
-        println!("{}", success_announcement.green());
-        println!("{}", formatted_steps.green());
+    if let Some(shortest_path) = find_shortest_path(&start_word, &end_word, wildcard_word_lookup) {
+        report_success(&start_word, &end_word, &shortest_path);
     } else {
-        let failure_announcement =
-            format!("No ladder found between '{start_word}' and '{end_word}'.");
-        println!("{}", failure_announcement.red());
+        report_failure(&start_word, &end_word);
     }
 }
 
@@ -87,14 +63,66 @@ fn make_wildcard_words(word: &str) -> Vec<String> {
         .collect::<Vec<String>>()
 }
 
-// TODO actually take inputs from command line and validate them
-//   validate that they're the same length
-//   validate that they're between 3 and 5 chars long
-//   that the start and target word are not the same
-//   lowercase them
-//   validate that they're both in word list?
-// TODO any really fancy way to replace any of my Vecs with tuples or arrays? At least, in the
-//   'wildcard words' case where we know how many items we're dealing with, but only at runtime?
-// TODO make sure I didn't mess up lifetimes on find_shortest_path... and understand what they really mean
-// TODO split up code, at least into fns and maybe mods
+fn make_wildcard_word_lookup(word_len: usize) -> HashMap<String, Vec<&'static str>> {
+    let unsplit_words = match word_len {
+        3 => THREE_LETTER_WORDS,
+        4 => FOUR_LETTER_WORDS,
+        5 => FIVE_LETTER_WORDS,
+        _ => unreachable!("Please provide words between between 3 and 5 letters long."),
+    };
+    let mut word_wildcard_lookups: HashMap<String, Vec<&str>> = HashMap::new();
+    for word in unsplit_words.lines() {
+        for wildcard_word in make_wildcard_words(word) {
+            word_wildcard_lookups
+                .entry(wildcard_word)
+                .or_insert_with(Vec::new)
+                .push(word);
+        }
+    }
+    word_wildcard_lookups
+}
+
+/// Parse our 'start' and 'end' words out of the provided command line arguments, returning
+/// them in a (start, end) tuple. Print to stderr and exit if the args are not valid.
+fn validate_args(args: env::Args) -> (String, String) {
+    let mut args = args.skip(1);
+    let start_word = args.next().map(|w| w.to_lowercase()).unwrap_or_else(|| {
+        eprint!("{}", USAGE_INSTRUCTIONS.red());
+        process::exit(1)
+    });
+    let end_word = args.next().map(|w| w.to_lowercase()).unwrap_or_else(|| {
+        eprint!("{}", USAGE_INSTRUCTIONS.red());
+        process::exit(1)
+    });
+    let word_len = start_word.len(); // really assuming ASCII here: one byte per char
+    if word_len > 5 || word_len < 3 || word_len != end_word.len() {
+        eprint!("{}", USAGE_INSTRUCTIONS.red());
+        process::exit(1)
+    }
+    if start_word == end_word {
+        eprint!(
+            "{}",
+            "The starting and ending word must be different from each other.".red()
+        );
+        process::exit(1)
+    }
+    (start_word, end_word)
+}
+
+fn report_success(start_word: &str, end_word: &str, shortest_path: &[&str]) -> () {
+    let num_steps = shortest_path.len() - 1;
+    let plural = if num_steps > 1 { "s" } else { "" };
+    let success_announcement =
+        format!("Found path from '{start_word}' to '{end_word}' in {num_steps} step{plural}!");
+    let formatted_steps = shortest_path.join(" -> ");
+    println!("{}", success_announcement.green());
+    println!("{}", formatted_steps.green());
+}
+
+fn report_failure(start_word: &str, end_word: &str) {
+    let failure_announcement = format!("No path found between '{start_word}' and '{end_word}'.");
+    println!("{}", failure_announcement.red());
+}
+
 // TODO add comments / docstrings
+// TODO update readme, incl note on how we don't validate that worsd are in dictionary
