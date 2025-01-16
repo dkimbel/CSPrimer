@@ -1,3 +1,4 @@
+use colored::Colorize;
 use std::collections::{HashMap, HashSet, VecDeque};
 
 const THREE_LETTER_WORDS: &str = include_str!("../resources/three_letter_words.txt");
@@ -28,9 +29,19 @@ fn main() {
         }
     }
 
-    let shortest_path_if_any = find_shortest_path(start_word, end_word, word_wildcard_lookups);
-
-    dbg!(&shortest_path_if_any);
+    // print results to stdout (even in failure case... though arguably that should be stderr)
+    if let Some(shortest_path) = find_shortest_path(start_word, end_word, word_wildcard_lookups) {
+        let num_steps = shortest_path.len() - 1;
+        let success_announcement =
+            format!("Found ladder from '{start_word}' to '{end_word}' in {num_steps} steps!");
+        let formatted_steps = shortest_path.join(" -> ");
+        println!("{}", success_announcement.green());
+        println!("{}", formatted_steps.green());
+    } else {
+        let failure_announcement =
+            format!("No ladder found between '{start_word}' and '{end_word}'.");
+        println!("{}", failure_announcement.red());
+    }
 }
 
 fn find_shortest_path<'a, 'b>(
@@ -82,7 +93,6 @@ fn make_wildcard_words(word: &str) -> Vec<String> {
 //   that the start and target word are not the same
 //   lowercase them
 //   validate that they're both in word list?
-// TODO print results, incl number of steps it took (path.len() - 2)
 // TODO any really fancy way to replace any of my Vecs with tuples or arrays? At least, in the
 //   'wildcard words' case where we know how many items we're dealing with, but only at runtime?
 // TODO make sure I didn't mess up lifetimes on find_shortest_path... and understand what they really mean
