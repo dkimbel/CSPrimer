@@ -11,12 +11,12 @@ const USAGE_INSTRUCTIONS: &str = "Please provide two words as arguments. The wor
 
 fn main() {
     let (start_word, end_word) = validate_args(env::args());
-    let wildcard_word_lookup = make_wildcard_word_lookup(start_word.len());
+    let wildcard_word_lookup = make_wildcard_word_lookup(&start_word, &end_word);
 
     if let Some(shortest_path) = find_shortest_path(&start_word, &end_word, wildcard_word_lookup) {
-        report_success(&start_word, &end_word, &shortest_path);
+        report_search_success(&start_word, &end_word, &shortest_path);
     } else {
-        report_failure(&start_word, &end_word);
+        report_search_failure(&start_word, &end_word);
     }
 }
 
@@ -79,21 +79,42 @@ fn make_wildcard_words(word: &str) -> Vec<String> {
 /// Build a map of "wildcard words" to collections of words from our built-in word list.
 /// Here's how one key-value pair might look, where the key is the "wildcard word":
 /// "*ish" => ["fish", "wish"]
-fn make_wildcard_word_lookup(word_len: usize) -> HashMap<String, Vec<&'static str>> {
-    let unsplit_words = match word_len {
+/// At the same time, while making its single pass through our word list, this function
+/// confirms that both the starting and ending word were found. If either is missing,
+/// we exit the program with an error message.
+fn make_wildcard_word_lookup(
+    start_word: &str,
+    end_word: &str,
+) -> HashMap<String, Vec<&'static str>> {
+    let unsplit_words = match start_word.len() {
         3 => THREE_LETTER_WORDS,
         4 => FOUR_LETTER_WORDS,
         5 => FIVE_LETTER_WORDS,
         _ => unreachable!("Please provide words between between 3 and 5 letters long."),
     };
     let mut word_wildcard_lookups: HashMap<String, Vec<&str>> = HashMap::new();
+    let mut start_word_found = false;
+    let mut end_word_found = false;
+
     for word in unsplit_words.lines() {
+        if word == start_word {
+            start_word_found = true;
+        }
+        if word == end_word {
+            end_word_found = true;
+        }
         for wildcard_word in make_wildcard_words(word) {
             word_wildcard_lookups
                 .entry(wildcard_word)
                 .or_insert_with(Vec::new)
                 .push(word);
         }
+    }
+
+    if !start_word_found {
+        report_failure_to_find_word_and_exit(start_word);
+    } else if !end_word_found {
+        report_failure_to_find_word_and_exit(end_word);
     }
     word_wildcard_lookups
 }
@@ -125,7 +146,7 @@ fn validate_args(args: env::Args) -> (String, String) {
     (start_word, end_word)
 }
 
-fn report_success(start_word: &str, end_word: &str, shortest_path: &[&str]) -> () {
+fn report_search_success(start_word: &str, end_word: &str, shortest_path: &[&str]) -> () {
     let num_steps = shortest_path.len() - 1;
     let plural = if num_steps > 1 { "s" } else { "" };
     let success_announcement =
@@ -135,7 +156,13 @@ fn report_success(start_word: &str, end_word: &str, shortest_path: &[&str]) -> (
     println!("{}", formatted_steps.green());
 }
 
-fn report_failure(start_word: &str, end_word: &str) {
+fn report_search_failure(start_word: &str, end_word: &str) {
     let failure_announcement = format!("No path found between '{start_word}' and '{end_word}'.");
     println!("{}", failure_announcement.red());
+}
+
+fn report_failure_to_find_word_and_exit(word: &str) {
+    let failure_message = format!("Failed to find '{word}' in word list; please use a valid English word that is not a proper noun.");
+    eprintln!("{}", failure_message.red());
+    process::exit(1);
 }
