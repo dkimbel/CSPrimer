@@ -13,7 +13,7 @@ impl BoardState {
 }
 
 fn main() {
-    match solve_dfs(5, 5) {
+    match solve_dfs(8, 8) {
         Some(tour_path) => println!("Successfully toured board! Path: {:#?}", &tour_path),
         None => println!("Failed to find a tour path."),
     }
@@ -31,10 +31,9 @@ fn solve_dfs(x_dimension: usize, y_dimension: usize) -> Option<Vec<(usize, usize
         let mut board_state = board_state.clone();
         board_state.visited[y][x] = true;
 
-        let mut path = board_state.path.clone();
-        path.push((x, y));
-        if path.len() == total_num_board_spaces {
-            return Some(path);
+        board_state.path.push((x, y));
+        if board_state.path.len() == total_num_board_spaces {
+            return Some(board_state.path);
         }
 
         let can_move_long_upwards = y < y_dimension - 2;
