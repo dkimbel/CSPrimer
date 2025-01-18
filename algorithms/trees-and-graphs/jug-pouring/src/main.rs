@@ -31,8 +31,10 @@ impl Jug {
                     ..self
                 },
                 format!(
-                    "Filled jug {} (max capacity {}) by adding {gallons_needed_to_fill} gallons.",
-                    self.id, self.max_gallons
+                    "Filled jug #{} by adding {} gallon{}.",
+                    self.id,
+                    gallons_needed_to_fill,
+                    if gallons_needed_to_fill == 1 { "" } else { "s" }
                 ),
             ))
         }
@@ -51,39 +53,83 @@ impl Jug {
                     ..self
                 },
                 format!(
-                    "Emptied jug {} (max capacity {}) by dumping all {} of its gallons.",
-                    self.id, self.max_gallons, self.current_gallons
+                    "Emptied jug #{} by dumping out {} gallon{}.",
+                    self.id,
+                    self.current_gallons,
+                    if self.current_gallons == 1 { "" } else { "s" }
                 ),
             ))
         }
     }
 
     /// "Pour" as much volume as possible from self to the other jug. Illegal if the target
-    /// jug is already full orif the current jug is empty; returns None in those cases. In
-    /// the success case, returns a new copy of both jugs and a string description of the
-    /// operation.
-    fn pour(self, target: Jug) -> Option<(Jug, Jug, String)> {
-        if self.current_gallons == 0 || target.current_gallons == target.max_gallons {
+    /// jug is already full, the current jug is empty, or the jugs are the same (even sharing
+    /// the same ID). Returns None in those cases. In the success case, returns a new copy of
+    /// both jugs and a string description of the operation.
+    fn pour_into(self, target: Jug) -> Option<(Jug, Jug, String)> {
+        if self.current_gallons == 0
+            || target.current_gallons == target.max_gallons
+            || self == target
+        {
             None
         } else {
             let target_capacity = target.max_gallons - target.current_gallons;
             let gallons_transferred = std::cmp::min(target_capacity, self.current_gallons);
+            let source_gallons_after = self.current_gallons - gallons_transferred;
+            let target_gallons_after = target.current_gallons + gallons_transferred;
             Some((
                 Jug {
-                    current_gallons: self.current_gallons - gallons_transferred,
+                    current_gallons: source_gallons_after,
                     ..self
                 },
                 Jug {
-                    current_gallons: target.current_gallons + gallons_transferred,
+                    current_gallons: target_gallons_after,
                     ..target
                 },
                 format!(
-                    "Poured {gallons_transferred} gallons from jug {} (max capacity {}) \
-                    to jug {} (max capacity {}).",
-                    self.id, self.max_gallons, target.id, target.max_gallons
+                    "Poured {} gallon{} from jug #{} to jug #{}, leaving \
+                    {} gallon{} in jug #{} and {} gallon{} in jug #{}.",
+                    gallons_transferred,
+                    if gallons_transferred == 1 { "" } else { "s" },
+                    self.id,
+                    target.id,
+                    source_gallons_after,
+                    if source_gallons_after == 1 { "" } else { "s" },
+                    self.id,
+                    target_gallons_after,
+                    if target_gallons_after == 1 { "" } else { "s" },
+                    target.id
                 ),
             ))
         }
+    }
+
+    fn insert_at_index(&self, insert_at_i: usize, jugs: &Vec<Jug>) -> Vec<Jug> {
+        jugs.iter()
+            .enumerate()
+            .map(|(i, jug)| if i == insert_at_i { *self } else { *jug })
+            .collect::<Vec<_>>()
+    }
+
+    fn insert_at_indices(
+        first_jug: Jug,
+        first_i: usize,
+        second_jug: Jug,
+        second_i: usize,
+        jugs: &Vec<Jug>,
+    ) -> Vec<Jug> {
+        jugs.iter()
+            .enumerate()
+            .map(|(i, jug)| {
+                if i == first_i {
+                    first_jug
+                } else if i == second_i {
+                    second_jug
+                } else {
+                    *jug
+                }
+            })
+            .collect::<Vec<_>>()
     }
 }
 
@@ -93,35 +139,83 @@ fn main() {
     // actions, because every jug starts out empty (and the goal is nonzero).
     let goal_num_gallons = 4;
 
-    let already_seen_states = HashSet::from([jugs.clone()]);
+    let maybe_shortest_path_operations = find_shortest_path(jugs, goal_num_gallons);
+    match maybe_shortest_path_operations {
+        Some(shortest_path_operations) => {
+            println!(
+                "Reached goal after {} steps!",
+                shortest_path_operations.len()
+            );
+            shortest_path_operations
+                .iter()
+                .enumerate()
+                .for_each(|(i, operation)| println!("{}. {operation}", i + 1));
+        }
+        None => println!("Unable to reach goal."),
+    }
+}
+
+fn find_shortest_path(jugs: Vec<Jug>, goal_num_gallons: u32) -> Option<Vec<String>> {
+    let mut already_seen_states = HashSet::from([jugs.clone()]);
     // the collection of strings has in-order descriptions of every operation we've performed
     let mut queue: VecDeque<(Vec<Jug>, Vec<String>)> = VecDeque::from([(jugs, Vec::new())]);
 
     while let Some((jugs, operations)) = queue.pop_front() {
         for source_i in 0..jugs.len() {
             let source_jug = &jugs[source_i];
+
+            // Try filling the jug
             if let Some((filled_source, fill_description)) = source_jug.fill() {
                 let mut operations = operations.clone();
                 operations.push(fill_description);
                 if filled_source.current_gallons == goal_num_gallons {
-                    return operations;
+                    return Some(operations);
                 }
-                let jugs = jugs
-                    .iter()
-                    .enumerate()
-                    .map(|(i, jug)| if i == source_i { filled_source } else { *jug })
-                    .collect::<Vec<_>>();
-                queue.push_back((jugs, operations));
+                let jugs = filled_source.insert_at_index(source_i, &jugs);
+                if !already_seen_states.contains(&jugs) {
+                    queue.push_back((jugs.clone(), operations));
+                    already_seen_states.insert(jugs);
+                }
             }
-            // TODO try emptying
-            for target_jug in jugs {
-                if source_jug != target_jug {
-                    // TODO try transferring
+
+            // Try emptying the jug
+            if let Some((emptied_source, empty_description)) = source_jug.dump() {
+                let mut operations = operations.clone();
+                operations.push(empty_description);
+                // No need to check for win condition here -- 0 gallons is invalid for winning
+                let jugs = emptied_source.insert_at_index(source_i, &jugs);
+                if !already_seen_states.contains(&jugs) {
+                    queue.push_back((jugs.clone(), operations));
+                    already_seen_states.insert(jugs);
+                }
+            }
+
+            // Try transferring between this jug and every other one
+            for (target_i, target_jug) in jugs.iter().enumerate() {
+                if let Some((reduced_source, increased_target, pour_description)) =
+                    source_jug.pour_into(*target_jug)
+                {
+                    let mut operations = operations.clone();
+                    operations.push(pour_description);
+                    if reduced_source.current_gallons == goal_num_gallons
+                        || increased_target.current_gallons == goal_num_gallons
+                    {
+                        return Some(operations);
+                    }
+                    let jugs = Jug::insert_at_indices(
+                        reduced_source,
+                        source_i,
+                        increased_target,
+                        target_i,
+                        &jugs,
+                    );
+                    if !already_seen_states.contains(&jugs) {
+                        queue.push_back((jugs.clone(), operations));
+                        already_seen_states.insert(jugs);
+                    }
                 }
             }
         }
-
-        // TODO always check for winner and do visited addition? or is the code crazy?
-        //   one option: helpers for making new (jugs, operations) for fill, empty, xfer
     }
+    None
 }
