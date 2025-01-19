@@ -1,49 +1,25 @@
-#[derive(Clone)]
-struct BoardState {
-    visited: Vec<Vec<bool>>,
-    path: Vec<(usize, usize)>,
-}
-
-impl BoardState {
-    fn new(x_dimension: usize, y_dimension: usize) -> BoardState {
-        let visited = vec![vec![false; x_dimension]; y_dimension];
-        let path = Vec::new();
-        BoardState { visited, path }
-    }
-
-    fn clone_with_visited_coords(&self, x: usize, y: usize) -> BoardState {
-        let mut new_board_state = self.clone();
-        new_board_state.visited[y][x] = true;
-        new_board_state.path.push((x, y));
-        new_board_state
-    }
-}
+use indexmap::IndexSet;
 
 fn main() {
-    match find_tour_dfs(8, 8, false) {
-        Some(tour_path) => println!("Successfully toured board! Path: {:#?}", &tour_path),
-        None => println!("Failed to find a tour path."),
-    }
+    let tour_path = find_tour_dfs(8, 8);
+    println!("Successfully toured board! Path: {:#?}", &tour_path);
 }
 
-fn find_tour_dfs(
-    x_dimension: usize,
-    y_dimension: usize,
-    closed_tours_only: bool,
-) -> Option<Vec<(usize, usize)>> {
-    let starting_coords = (0, 0);
+pub fn find_tour_dfs(x_dimension: usize, y_dimension: usize) -> IndexSet<(usize, usize)> {
     let total_num_board_spaces = x_dimension * y_dimension;
-    let mut stack = vec![(starting_coords, BoardState::new(x_dimension, y_dimension))];
+    // IndexSet maintains insertion order, so it can serve as both our 'visited' list
+    // AND our currently-searched path. We only need an IndexSet to represent each
+    // current search within our stack. Inspired by Oz's use of a Python dict, which
+    // preserves order, to accomplish the same thing.
+    let mut stack: Vec<IndexSet<(usize, usize)>> = vec![IndexSet::from([(0, 0)])];
     let mut next_options = Vec::with_capacity(8);
 
-    while let Some(((x, y), board_state)) = stack.pop() {
-        if board_state.path.len() == total_num_board_spaces
-            && ((x, y) == starting_coords || !closed_tours_only)
-        {
-            return Some(board_state.path);
-        } else if board_state.visited[y][x] {
-            continue;
+    while let Some(path) = stack.pop() {
+        if path.len() == total_num_board_spaces {
+            return path;
         }
+
+        let (x, y) = *(path.last().unwrap());
 
         let can_move_long_upwards = y < y_dimension - 2;
         let can_move_short_upwards = y < y_dimension - 1;
@@ -88,13 +64,17 @@ fn find_tour_dfs(
             let w2 = warnsdorf_distance(*x2, *y2, x_dimension, y_dimension);
             w2.cmp(&w1)
         });
-        next_options.iter().for_each(|(new_x, new_y)| {
-            let new_board_state = board_state.clone_with_visited_coords(x, y);
-            stack.push(((*new_x, *new_y), new_board_state));
-        });
+        next_options
+            .iter()
+            .filter(|coords| !path.contains(*coords))
+            .for_each(|coords| {
+                let mut new_path = path.clone();
+                new_path.insert(*coords);
+                stack.push(new_path);
+            });
     }
 
-    None
+    panic!("Failed to find a tour path.")
 }
 
 // Calculate the total distance of a point from both edges of the board (distance from
