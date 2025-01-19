@@ -21,40 +21,8 @@ pub fn find_tour_dfs(x_dimension: usize, y_dimension: usize) -> IndexSet<(usize,
 
         let (x, y) = *(path.last().unwrap());
 
-        let can_move_long_upwards = y < y_dimension - 2;
-        let can_move_short_upwards = y < y_dimension - 1;
-        let can_move_long_downwards = y >= 2;
-        let can_move_short_downwards = y >= 1;
-        let can_move_long_right = x < x_dimension - 2;
-        let can_move_short_right = x < x_dimension - 1;
-        let can_move_long_left = x >= 2;
-        let can_move_short_left = x >= 1;
-
         next_options.clear();
-        if can_move_long_upwards && can_move_short_right {
-            next_options.push((x + 1, y + 2));
-        }
-        if can_move_long_upwards && can_move_short_left {
-            next_options.push((x - 1, y + 2));
-        }
-        if can_move_long_downwards && can_move_short_right {
-            next_options.push((x + 1, y - 2));
-        }
-        if can_move_long_downwards && can_move_short_left {
-            next_options.push((x - 1, y - 2));
-        }
-        if can_move_short_upwards && can_move_long_right {
-            next_options.push((x + 2, y + 1));
-        }
-        if can_move_short_upwards && can_move_long_left {
-            next_options.push((x - 2, y + 1));
-        }
-        if can_move_short_downwards && can_move_long_right {
-            next_options.push((x + 2, y - 1));
-        }
-        if can_move_short_downwards && can_move_long_left {
-            next_options.push((x - 2, y - 1));
-        }
+        get_next_options(x, y, x_dimension, y_dimension, &mut next_options);
 
         // The last thing added to the stack is popped first; we want to pop the lowest
         // warnsdorf distance first, so we want it added to the stack last. So: sort
@@ -66,6 +34,7 @@ pub fn find_tour_dfs(x_dimension: usize, y_dimension: usize) -> IndexSet<(usize,
         });
         next_options
             .iter()
+            // remove already-visited coords
             .filter(|coords| !path.contains(*coords))
             .for_each(|coords| {
                 let mut new_path = path.clone();
@@ -75,6 +44,48 @@ pub fn find_tour_dfs(x_dimension: usize, y_dimension: usize) -> IndexSet<(usize,
     }
 
     panic!("Failed to find a tour path.")
+}
+
+fn get_next_options(
+    x: usize,
+    y: usize,
+    x_dimension: usize,
+    y_dimension: usize,
+    next_options: &mut Vec<(usize, usize)>,
+) {
+    let can_move_long_upwards = y < y_dimension - 2;
+    let can_move_short_upwards = y < y_dimension - 1;
+    let can_move_long_downwards = y >= 2;
+    let can_move_short_downwards = y >= 1;
+    let can_move_long_right = x < x_dimension - 2;
+    let can_move_short_right = x < x_dimension - 1;
+    let can_move_long_left = x >= 2;
+    let can_move_short_left = x >= 1;
+
+    if can_move_long_upwards && can_move_short_right {
+        next_options.push((x + 1, y + 2));
+    }
+    if can_move_long_upwards && can_move_short_left {
+        next_options.push((x - 1, y + 2));
+    }
+    if can_move_long_downwards && can_move_short_right {
+        next_options.push((x + 1, y - 2));
+    }
+    if can_move_long_downwards && can_move_short_left {
+        next_options.push((x - 1, y - 2));
+    }
+    if can_move_short_upwards && can_move_long_right {
+        next_options.push((x + 2, y + 1));
+    }
+    if can_move_short_upwards && can_move_long_left {
+        next_options.push((x - 2, y + 1));
+    }
+    if can_move_short_downwards && can_move_long_right {
+        next_options.push((x + 2, y - 1));
+    }
+    if can_move_short_downwards && can_move_long_left {
+        next_options.push((x - 2, y - 1));
+    }
 }
 
 // Calculate the total distance of a point from both edges of the board (distance from
