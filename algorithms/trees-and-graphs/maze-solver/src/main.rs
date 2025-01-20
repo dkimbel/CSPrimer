@@ -1,8 +1,15 @@
-use std::collections::BinaryHeap;
+use colored::Colorize;
+use std::collections::{BinaryHeap, HashSet};
 
 const SMALL: &str = include_str!("../resources/small.txt");
 const MEDIUM: &str = include_str!("../resources/medium.txt");
 const LARGE: &str = include_str!("../resources/large.txt");
+
+fn main() {
+    let mut maze = MazeSolver::new(MEDIUM);
+    maze.find_least_expensive_path();
+    maze.print_path_on_grid();
+}
 
 #[derive(Clone, Copy)]
 enum TileType {
@@ -58,7 +65,20 @@ impl Ord for SearchStep {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         let self_cost = self.cost_so_far + self.lowest_possible_cost_to_end;
         let other_cost = other.cost_so_far + other.lowest_possible_cost_to_end;
-        self_cost.cmp(&other_cost)
+        // sort the heap to prioritize lowest cost -- by it will try to pop greatest item first,
+        // so tell it that a lower cost is "greater"
+        use std::cmp::Ordering::*;
+        match self_cost.cmp(&other_cost) {
+            Less => Greater,
+            Greater => Less,
+            // Tiebreaker: prefer horizontal moves over diagonal, to avoid unnecessary zigging
+            // and zagging off-course (visually, not in terms of official cost).
+            Equal => match (self.is_straight(), other.is_straight()) {
+                (true, false) => Greater,
+                (false, true) => Less,
+                _ => Equal,
+            },
+        }
     }
 }
 
@@ -83,6 +103,15 @@ impl SearchStep {
             lowest_possible_cost_to_end,
         }
     }
+
+    fn is_straight(&self) -> bool {
+        let (x, y) = self.visiting;
+        if let Some((from_x, from_y)) = self.from {
+            from_x == x || from_y == y
+        } else {
+            false
+        }
+    }
 }
 
 struct MazeSolver {
@@ -99,16 +128,16 @@ impl MazeSolver {
         let mut start: Option<(usize, usize)> = None;
         let mut end: Option<(usize, usize)> = None;
 
-        for (row_i, line) in input.lines().enumerate() {
+        for (y, line) in input.lines().enumerate() {
             let mut row: Vec<Tile> = Vec::new();
-            for (col_i, tile_char) in line.chars().enumerate() {
+            for (x, tile_char) in line.chars().enumerate() {
                 match tile_char {
                     ' ' => row.push(Tile::new(TileType::Field)),
                     '.' => row.push(Tile::new(TileType::Bog)),
                     '#' => row.push(Tile::new(TileType::Mountain)),
                     'O' => {
                         if start.is_none() {
-                            start = Some((col_i, row_i));
+                            start = Some((x, y));
                             row.push(Tile::new(TileType::Field));
                         } else {
                             panic!("Multiple start points found");
@@ -116,7 +145,7 @@ impl MazeSolver {
                     }
                     'X' => {
                         if end.is_none() {
-                            end = Some((col_i, row_i));
+                            end = Some((x, y));
                             row.push(Tile::new(TileType::Field));
                         } else {
                             panic!("Multiple end points found");
@@ -192,10 +221,10 @@ impl MazeSolver {
             let (x, y) = visiting;
             let tile = &mut self.grid[y][x];
 
-            // If we already reached these coordinates by paying a lower cost, the path we're
-            // currently exploring is apparently suboptimal, and we should stop pursuing it.
+            // If we already reached these coordinates by paying an equal or lower cost, the path
+            // we're currently exploring cannot possibly be an improvement.
             if let Some(lowest_cost_so_far) = tile.lowest_cost_to_reach {
-                if lowest_cost_so_far < cost_so_far {
+                if lowest_cost_so_far <= cost_so_far {
                     continue;
                 }
             }
@@ -224,8 +253,8 @@ impl MazeSolver {
     fn generate_path(&self) -> Vec<(usize, usize)> {
         let mut path: Vec<(usize, usize)> = Vec::from([self.end]);
 
-        // Build the path backwards, starting from the end, since each tile (including our end tile)
-        // knows which coordinates led to it.
+        // Build the path backwards, starting from the end, since each tile (including our
+        // end tile) knows which coordinates led to it.
         let (end_x, end_y) = self.end;
         let mut tile = self.grid[end_y][end_x];
 
@@ -238,9 +267,38 @@ impl MazeSolver {
         path.reverse();
         path
     }
-}
 
-fn main() {
-    let path = MazeSolver::new(SMALL).find_least_expensive_path();
-    dbg!(path);
+    fn print_path_on_grid(&self) {
+        let path: HashSet<(usize, usize)> =
+            self.generate_path().into_iter().collect::<HashSet<_>>();
+
+        for (y, row) in self.grid.iter().enumerate() {
+            let mut s = String::from("");
+            for (x, tile) in row.iter().enumerate() {
+                if path.contains(&(x, y)) {
+                    let glyph = if (x, y) == self.start {
+                        "O"
+                    } else if (x, y) == self.end {
+                        "X"
+                    } else {
+                        "o"
+                    };
+                    let colored_glyph = match tile.tile_type {
+                        TileType::Field => glyph.green(),
+                        TileType::Bog => glyph.yellow(),
+                        TileType::Mountain => glyph.red(),
+                    };
+                    s.push_str(&format!("{}", colored_glyph));
+                } else {
+                    let tile_char = match tile.tile_type {
+                        TileType::Field => ' ',
+                        TileType::Bog => '.',
+                        TileType::Mountain => '#',
+                    };
+                    s.push(tile_char);
+                }
+            }
+            println!("{}", s);
+        }
+    }
 }
