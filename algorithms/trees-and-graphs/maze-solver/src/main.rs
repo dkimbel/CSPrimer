@@ -46,7 +46,7 @@ impl Tile {
 #[derive(PartialEq, Eq)]
 struct SearchStep {
     visiting: (usize, usize),
-    from: Option<(usize, usize)>, // technically unnecessary; only powers is_straight
+    from: Option<(usize, usize)>,
     cost_so_far: usize,
     lowest_possible_cost_to_end: usize,
 }
@@ -211,10 +211,20 @@ impl MazeSolver {
 
         while let Some(SearchStep {
             visiting,
+            from,
             cost_so_far,
             ..
         }) = priority_queue.pop()
         {
+            let (x, y) = visiting;
+            let tile = &mut self.grid[y][x];
+            // Since our search is sorted by cost, any earlier path that checked these coordinates
+            // would have been more optimal.
+            if tile.visited_from.is_some() {
+                continue;
+            }
+
+            tile.visited_from = from;
             if visiting == self.end {
                 return self.reconstruct_path();
             }
@@ -222,8 +232,6 @@ impl MazeSolver {
             self.next_legal_moves(visiting, &mut next_moves);
             for (x, y) in next_moves.iter() {
                 let to_tile = &mut self.grid[*y][*x];
-                // Since our search is sorted by cost, any earlier path that checked these
-                // coordinates would have been more optimal.
                 if to_tile.visited_from.is_none() {
                     priority_queue.push(SearchStep::new(
                         (*x, *y),
@@ -231,7 +239,6 @@ impl MazeSolver {
                         cost_so_far + to_tile.tile_type.cost_to_enter(),
                         self.end,
                     ));
-                    to_tile.visited_from = Some(visiting);
                 }
             }
         }
@@ -275,7 +282,7 @@ impl MazeSolver {
                     } else if (x, y) == self.end {
                         "X"
                     } else {
-                        "o"
+                        "*"
                     };
                     let colored_glyph = match tile.tile_type {
                         TileType::Field => glyph.green(),
