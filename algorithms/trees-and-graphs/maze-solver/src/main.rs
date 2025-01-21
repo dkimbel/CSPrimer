@@ -31,16 +31,14 @@ impl TileType {
 #[derive(Clone, Copy)]
 struct Tile {
     tile_type: TileType,
-    lowest_cost_to_reach: Option<usize>,
-    lowest_cost_from: Option<(usize, usize)>,
+    visited_from: Option<(usize, usize)>,
 }
 
 impl Tile {
     fn new(tile_type: TileType) -> Self {
         Tile {
             tile_type,
-            lowest_cost_to_reach: None,
-            lowest_cost_from: None,
+            visited_from: None,
         }
     }
 }
@@ -48,7 +46,7 @@ impl Tile {
 #[derive(PartialEq, Eq)]
 struct SearchStep {
     visiting: (usize, usize),
-    from: Option<(usize, usize)>,
+    from: Option<(usize, usize)>, // technically unnecessary; only powers is_straight
     cost_so_far: usize,
     lowest_possible_cost_to_end: usize,
 }
@@ -65,13 +63,13 @@ impl Ord for SearchStep {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         let self_cost = self.cost_so_far + self.lowest_possible_cost_to_end;
         let other_cost = other.cost_so_far + other.lowest_possible_cost_to_end;
-        // sort the heap to prioritize lowest cost -- by it will try to pop greatest item first,
-        // so tell it that a lower cost is "greater"
         use std::cmp::Ordering::*;
         match self_cost.cmp(&other_cost) {
+            // These values are reversed because a BinaryHeap will pop its greatest item first.
+            // We want the lowest cost to be prioritized, so it has to be 'greatest'.
             Less => Greater,
             Greater => Less,
-            // Tiebreaker: prefer horizontal moves over diagonal, to avoid unnecessary zigging
+            // Tiebreaker: prefer straight moves over diagonal, to avoid unnecessary zigging
             // and zagging off-course (visually, not in terms of official cost).
             Equal => match (self.is_straight(), other.is_straight()) {
                 (true, false) => Greater,
@@ -93,7 +91,7 @@ impl SearchStep {
         let y_diff = if y >= end_y { y - end_y } else { end_y - y };
         // Since we can travel diagonally, the smaller diff doesn't matter at all. Suppose we
         // need to go 15 steps south and 20 steps east; we can first go 15 steps southeast, then
-        // go 5 east (15 + 5 = 20).
+        // go 5 east (15 + 5 = 20, same as the larger diff).
         let lowest_possible_cost_to_end = std::cmp::max(x_diff, y_diff);
 
         SearchStep {
@@ -213,44 +211,35 @@ impl MazeSolver {
 
         while let Some(SearchStep {
             visiting,
-            from,
             cost_so_far,
             ..
         }) = priority_queue.pop()
         {
-            let (x, y) = visiting;
-            let tile = &mut self.grid[y][x];
-
-            // If we already reached these coordinates by paying an equal or lower cost, the path
-            // we're currently exploring cannot possibly be an improvement.
-            if let Some(lowest_cost_so_far) = tile.lowest_cost_to_reach {
-                if lowest_cost_so_far <= cost_so_far {
-                    continue;
-                }
-            }
-
-            tile.lowest_cost_to_reach = Some(cost_so_far);
-            tile.lowest_cost_from = from;
             if visiting == self.end {
-                return self.generate_path();
+                return self.reconstruct_path();
             }
 
             self.next_legal_moves(visiting, &mut next_moves);
             for (x, y) in next_moves.iter() {
-                let to_tile = &self.grid[*y][*x];
-                priority_queue.push(SearchStep::new(
-                    (*x, *y),
-                    Some(visiting),
-                    cost_so_far + to_tile.tile_type.cost_to_enter(),
-                    self.end,
-                ));
+                let to_tile = &mut self.grid[*y][*x];
+                // Since our search is sorted by cost, any earlier path that checked these
+                // coordinates would have been more optimal.
+                if to_tile.visited_from.is_none() {
+                    priority_queue.push(SearchStep::new(
+                        (*x, *y),
+                        Some(visiting),
+                        cost_so_far + to_tile.tile_type.cost_to_enter(),
+                        self.end,
+                    ));
+                    to_tile.visited_from = Some(visiting);
+                }
             }
         }
 
         panic!("Failed to find a path");
     }
 
-    fn generate_path(&self) -> Vec<(usize, usize)> {
+    fn reconstruct_path(&self) -> Vec<(usize, usize)> {
         let mut path: Vec<(usize, usize)> = Vec::from([self.end]);
 
         // Build the path backwards, starting from the end, since each tile (including our
@@ -258,9 +247,12 @@ impl MazeSolver {
         let (end_x, end_y) = self.end;
         let mut tile = self.grid[end_y][end_x];
 
-        while let Some((prev_x, prev_y)) = tile.lowest_cost_from {
-            path.push((prev_x, prev_y));
-            tile = self.grid[prev_y][prev_x];
+        while let Some((x, y)) = tile.visited_from {
+            path.push((x, y));
+            if (x, y) == self.start {
+                break;
+            }
+            tile = self.grid[y][x];
         }
 
         // Since we built our path backwards, we need to reverse it before returning.
@@ -269,8 +261,10 @@ impl MazeSolver {
     }
 
     fn print_path_on_grid(&self) {
+        // We're doing a bit of unnecessary work here -- putting the path into a Vec,
+        // reversing that Vec, and then changing it to a HashSet -- but it's fine.
         let path: HashSet<(usize, usize)> =
-            self.generate_path().into_iter().collect::<HashSet<_>>();
+            self.reconstruct_path().into_iter().collect::<HashSet<_>>();
 
         for (y, row) in self.grid.iter().enumerate() {
             let mut s = String::from("");
