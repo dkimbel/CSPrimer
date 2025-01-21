@@ -46,7 +46,7 @@ impl Tile {
 #[derive(PartialEq, Eq)]
 struct SearchStep {
     visiting: (usize, usize),
-    from: Option<(usize, usize)>, // technically unnecessary; only powers is_straight
+    is_straight: bool, // is this a vertical or horizontal move, not diagonal?
     cost_so_far: usize,
     lowest_possible_cost_to_end: usize,
 }
@@ -71,7 +71,7 @@ impl Ord for SearchStep {
             Greater => Less,
             // Tiebreaker: prefer straight moves over diagonal, to avoid unnecessary zigging
             // and zagging off-course (visually, not in terms of official cost).
-            Equal => match (self.is_straight(), other.is_straight()) {
+            Equal => match (self.is_straight, other.is_straight) {
                 (true, false) => Greater,
                 (false, true) => Less,
                 _ => Equal,
@@ -83,7 +83,7 @@ impl Ord for SearchStep {
 impl SearchStep {
     fn new(
         (x, y): (usize, usize),
-        from: Option<(usize, usize)>,
+        is_straight: bool,
         cost_so_far: usize,
         (end_x, end_y): (usize, usize),
     ) -> Self {
@@ -96,18 +96,9 @@ impl SearchStep {
 
         SearchStep {
             visiting: (x, y),
-            from,
+            is_straight,
             cost_so_far,
             lowest_possible_cost_to_end,
-        }
-    }
-
-    fn is_straight(&self) -> bool {
-        let (x, y) = self.visiting;
-        if let Some((from_x, from_y)) = self.from {
-            from_x == x || from_y == y
-        } else {
-            false
         }
     }
 }
@@ -206,7 +197,8 @@ impl MazeSolver {
     }
 
     fn find_least_expensive_path(&mut self) -> Vec<(usize, usize)> {
-        let mut priority_queue = BinaryHeap::from([SearchStep::new(self.start, None, 0, self.end)]);
+        let mut priority_queue =
+            BinaryHeap::from([SearchStep::new(self.start, false, 0, self.end)]);
         let mut next_moves: Vec<(usize, usize)> = Vec::new();
 
         while let Some(SearchStep {
@@ -218,6 +210,7 @@ impl MazeSolver {
             if visiting == self.end {
                 return self.reconstruct_path();
             }
+            let (visiting_x, visiting_y) = visiting;
 
             self.next_legal_moves(visiting, &mut next_moves);
             for (x, y) in next_moves.iter() {
@@ -227,7 +220,7 @@ impl MazeSolver {
                 if to_tile.visited_from.is_none() {
                     priority_queue.push(SearchStep::new(
                         (*x, *y),
-                        Some(visiting),
+                        *x == visiting_x || *y == visiting_y,
                         cost_so_far + to_tile.tile_type.cost_to_enter(),
                         self.end,
                     ));
