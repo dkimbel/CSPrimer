@@ -26,24 +26,21 @@ pub fn find_max_nonadjacent_sum(nums: &[u32]) -> u32 {
     };
     let mut i = 2;
 
-    println!("### Before iteration: max_2s = {max_2s}, max_1s = {max_1s}, max_0s = {max_0s}, i = {i}, last_i_exclusive = {last_i_exclusive}");
     while i < last_i_exclusive {
-        max_2s = cmp::max(max_0s, max_2s + nums[i]);
+        let prev_max_0s = max_0s;
         max_0s = cmp::max(max_0s + nums[i + 1], max_1s + nums[i + 1]);
-        max_1s += nums[i];
+        max_1s = cmp::max(max_1s + nums[i], max_2s + nums[i]);
+        max_2s = prev_max_0s;
 
         i += 2;
-        println!("### End of an iteration: max_2s = {max_2s}, max_1s = {max_1s}, max_0s = {max_0s}, i = {i}");
     }
 
-    // take care of any last remaining number
+    // take care of last remaining number from input in odd-length case
     if is_odd_len {
         max_2s += nums[i];
         max_1s += nums[i];
     }
 
-    println!("### End: max_2s = {max_2s}, max_1s = {max_1s}, max_0s = {max_0s}, i = {i}");
-    // unsure if max_2s can actually be the highest number at this point
     cmp::max(max_0s, cmp::max(max_1s, max_2s))
 }
 
