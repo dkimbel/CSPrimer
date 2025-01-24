@@ -1,6 +1,9 @@
 // Benchmarks courtesy of Claude Sonnet
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use house_robber::{best_iterative, find_max_nonadjacent_sum, memoized_recursive, naive_recursive};
+use house_robber::{
+    almost_best_iterative, best_iterative, find_max_nonadjacent_sum, memoized_recursive,
+    naive_recursive,
+};
 
 fn bench_house_robber(c: &mut Criterion) {
     // Create test cases of different sizes
@@ -13,6 +16,9 @@ fn bench_house_robber(c: &mut Criterion) {
     // Benchmark small input
     group.bench_function("best_iterative_small", |b| {
         b.iter(|| best_iterative(black_box(&small_input)))
+    });
+    group.bench_function("almost_best_iterative_small", |b| {
+        b.iter(|| almost_best_iterative(black_box(&small_input)))
     });
     group.bench_function("max_nonadjacent_small", |b| {
         b.iter(|| find_max_nonadjacent_sum(black_box(&small_input)))
@@ -28,6 +34,9 @@ fn bench_house_robber(c: &mut Criterion) {
     group.bench_function("best_iterative_medium", |b| {
         b.iter(|| best_iterative(black_box(&medium_input)))
     });
+    group.bench_function("almost_best_iterative_medium", |b| {
+        b.iter(|| almost_best_iterative(black_box(&medium_input)))
+    });
     group.bench_function("max_nonadjacent_medium", |b| {
         b.iter(|| find_max_nonadjacent_sum(black_box(&medium_input)))
     });
@@ -38,6 +47,9 @@ fn bench_house_robber(c: &mut Criterion) {
 
     // Benchmark large input
     group.bench_function("best_iterative_large", |b| {
+        b.iter(|| best_iterative(black_box(&large_input)))
+    });
+    group.bench_function("almost_best_iterative_large", |b| {
         b.iter(|| best_iterative(black_box(&large_input)))
     });
     group.bench_function("max_nonadjacent_large", |b| {

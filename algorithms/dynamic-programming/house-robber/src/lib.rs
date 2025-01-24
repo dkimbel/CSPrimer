@@ -47,8 +47,8 @@ pub fn find_max_nonadjacent_sum(nums: &[u32]) -> u32 {
     cmp::max(max_0s, cmp::max(max_1s, max_2s))
 }
 
-/// The solution I didn't manage to arrive at myself.
-pub fn best_iterative(nums: &[u32]) -> u32 {
+/// A solution I didn't manage to arrive at myself.
+pub fn almost_best_iterative(nums: &[u32]) -> u32 {
     let mut max_stealing_curr_num = 0;
     let mut max_skipping_curr_num = 0;
 
@@ -63,6 +63,18 @@ pub fn best_iterative(nums: &[u32]) -> u32 {
     }
 
     cmp::max(max_stealing_curr_num, max_skipping_curr_num)
+}
+
+/// Another solution I didn't manage to arrive at myself.
+pub fn best_iterative(nums: &[u32]) -> u32 {
+    let mut prev_prev_best = 0;
+    let mut prev_best = 0;
+
+    for num in nums {
+        (prev_prev_best, prev_best) = (prev_best, cmp::max(prev_prev_best + num, prev_best))
+    }
+
+    prev_best
 }
 
 /// The recursive solution, which I didn't arrive at myself (I went straight to iterative, not
@@ -82,27 +94,24 @@ pub fn naive_recursive(nums: &[u32]) -> u32 {
 pub fn memoized_recursive(nums: &[u32]) -> u32 {
     let mut memo: HashMap<usize, u32> = HashMap::new();
 
-    memoized_recursive_inner(nums, &mut memo)
-}
+    fn inner(nums: &[u32], memo: &mut HashMap<usize, u32>) -> u32 {
+        if let Some(memoized) = memo.get(&nums.len()) {
+            return *memoized;
+        }
 
-fn memoized_recursive_inner(nums: &[u32], memo: &mut HashMap<usize, u32>) -> u32 {
-    if let Some(memoized) = memo.get(&nums.len()) {
-        return *memoized;
+        let result = match nums.len() {
+            0 => 0,
+            1 => nums[0],
+            // max of robbing nums[0] versus skipping it
+            _ => cmp::max(nums[0] + inner(&nums[2..], memo), inner(&nums[1..], memo)),
+        };
+
+        memo.insert(nums.len(), result);
+
+        result
     }
 
-    let result = match nums.len() {
-        0 => 0,
-        1 => nums[0],
-        // max of robbing nums[0] versus skipping it
-        _ => cmp::max(
-            nums[0] + memoized_recursive_inner(&nums[2..], memo),
-            memoized_recursive_inner(&nums[1..], memo),
-        ),
-    };
-
-    memo.insert(nums.len(), result);
-
-    result
+    inner(nums, &mut memo)
 }
 
 #[cfg(test)]
@@ -112,6 +121,7 @@ mod tests {
     #[test]
     fn empty() {
         assert_eq!(find_max_nonadjacent_sum(&[]), 0);
+        assert_eq!(almost_best_iterative(&[]), 0);
         assert_eq!(best_iterative(&[]), 0);
         assert_eq!(naive_recursive(&[]), 0);
         assert_eq!(memoized_recursive(&[]), 0);
@@ -120,6 +130,7 @@ mod tests {
     #[test]
     fn single_item() {
         assert_eq!(find_max_nonadjacent_sum(&[5]), 5);
+        assert_eq!(almost_best_iterative(&[5]), 5);
         assert_eq!(best_iterative(&[5]), 5);
         assert_eq!(naive_recursive(&[5]), 5);
         assert_eq!(memoized_recursive(&[5]), 5);
@@ -128,6 +139,7 @@ mod tests {
     #[test]
     fn two_items() {
         assert_eq!(find_max_nonadjacent_sum(&[5, 2]), 5);
+        assert_eq!(almost_best_iterative(&[5, 2]), 5);
         assert_eq!(best_iterative(&[5, 2]), 5);
         assert_eq!(naive_recursive(&[5, 2]), 5);
         assert_eq!(memoized_recursive(&[5, 2]), 5);
@@ -136,6 +148,7 @@ mod tests {
     #[test]
     fn three_mid() {
         assert_eq!(find_max_nonadjacent_sum(&[1, 7, 2]), 7);
+        assert_eq!(almost_best_iterative(&[1, 7, 2]), 7);
         assert_eq!(best_iterative(&[1, 7, 2]), 7);
         assert_eq!(naive_recursive(&[1, 7, 2]), 7);
         assert_eq!(memoized_recursive(&[1, 7, 2]), 7);
@@ -144,6 +157,7 @@ mod tests {
     #[test]
     fn three_normal() {
         assert_eq!(find_max_nonadjacent_sum(&[6, 7, 4]), 10);
+        assert_eq!(almost_best_iterative(&[6, 7, 4]), 10);
         assert_eq!(best_iterative(&[6, 7, 4]), 10);
         assert_eq!(naive_recursive(&[6, 7, 4]), 10);
         assert_eq!(memoized_recursive(&[6, 7, 4]), 10);
@@ -152,6 +166,7 @@ mod tests {
     #[test]
     fn four_split() {
         assert_eq!(find_max_nonadjacent_sum(&[7, 2, 1, 8]), 15);
+        assert_eq!(almost_best_iterative(&[7, 2, 1, 8]), 15);
         assert_eq!(best_iterative(&[7, 2, 1, 8]), 15);
         assert_eq!(naive_recursive(&[7, 2, 1, 8]), 15);
         assert_eq!(memoized_recursive(&[7, 2, 1, 8]), 15);
@@ -161,6 +176,7 @@ mod tests {
     fn fifth_huge() {
         // this test case involves us skipping two from the second spot to the fifth
         assert_eq!(find_max_nonadjacent_sum(&[2, 20, 4, 7, 100, 12, 14]), 134);
+        assert_eq!(almost_best_iterative(&[2, 20, 4, 7, 100, 12, 14]), 134);
         assert_eq!(best_iterative(&[2, 20, 4, 7, 100, 12, 14]), 134);
         assert_eq!(naive_recursive(&[2, 20, 4, 7, 100, 12, 14]), 134);
         assert_eq!(memoized_recursive(&[2, 20, 4, 7, 100, 12, 14]), 134);
@@ -170,6 +186,10 @@ mod tests {
     fn full_size() {
         assert_eq!(
             find_max_nonadjacent_sum(&[5, 1, 2, 7, 13, 44, 100, 99, 2, 200]),
+            355
+        );
+        assert_eq!(
+            almost_best_iterative(&[5, 1, 2, 7, 13, 44, 100, 99, 2, 200]),
             355
         );
         assert_eq!(best_iterative(&[5, 1, 2, 7, 13, 44, 100, 99, 2, 200]), 355);
@@ -186,6 +206,7 @@ mod tests {
             find_max_nonadjacent_sum(&[1, 10, 2, 3, 20, 4, 5, 30, 1]),
             60
         );
+        assert_eq!(almost_best_iterative(&[1, 10, 2, 3, 20, 4, 5, 30, 1]), 60);
         assert_eq!(best_iterative(&[1, 10, 2, 3, 20, 4, 5, 30, 1]), 60);
         assert_eq!(naive_recursive(&[1, 10, 2, 3, 20, 4, 5, 30, 1]), 60);
         assert_eq!(memoized_recursive(&[1, 10, 2, 3, 20, 4, 5, 30, 1]), 60);
@@ -195,6 +216,10 @@ mod tests {
     fn ascending() {
         assert_eq!(
             find_max_nonadjacent_sum(&[2, 4, 6, 8, 12, 14, 16, 18, 20, 22, 24, 26]),
+            92
+        );
+        assert_eq!(
+            almost_best_iterative(&[2, 4, 6, 8, 12, 14, 16, 18, 20, 22, 24, 26]),
             92
         );
         assert_eq!(
@@ -215,6 +240,10 @@ mod tests {
     fn descending() {
         assert_eq!(
             find_max_nonadjacent_sum(&[15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]),
+            64
+        );
+        assert_eq!(
+            almost_best_iterative(&[15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]),
             64
         );
         assert_eq!(
