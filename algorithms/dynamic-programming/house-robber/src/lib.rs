@@ -1,4 +1,5 @@
 use std::cmp;
+use std::collections::HashMap;
 
 pub fn find_max_nonadjacent_sum(nums: &[u32]) -> u32 {
     match nums.len() {
@@ -44,6 +45,44 @@ pub fn find_max_nonadjacent_sum(nums: &[u32]) -> u32 {
     cmp::max(max_0s, cmp::max(max_1s, max_2s))
 }
 
+pub fn naive_recursive(nums: &[u32]) -> u32 {
+    match nums.len() {
+        0 => 0,
+        1 => nums[0],
+        // max of robbing nums[0] versus skipping it
+        _ => cmp::max(
+            nums[0] + naive_recursive(&nums[2..]),
+            naive_recursive(&nums[1..]),
+        ),
+    }
+}
+
+pub fn memoized_recursive(nums: &[u32]) -> u32 {
+    let mut memo: HashMap<usize, u32> = HashMap::new();
+
+    memoized_recursive_inner(nums, &mut memo)
+}
+
+fn memoized_recursive_inner(nums: &[u32], memo: &mut HashMap<usize, u32>) -> u32 {
+    if let Some(memoized) = memo.get(&nums.len()) {
+        return *memoized;
+    }
+
+    let result = match nums.len() {
+        0 => 0,
+        1 => nums[0],
+        // max of robbing nums[0] versus skipping it
+        _ => cmp::max(
+            nums[0] + memoized_recursive_inner(&nums[2..], memo),
+            memoized_recursive_inner(&nums[1..], memo),
+        ),
+    };
+
+    memo.insert(nums.len(), result);
+
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -51,43 +90,62 @@ mod tests {
     #[test]
     fn empty() {
         assert_eq!(find_max_nonadjacent_sum(&[]), 0);
+        assert_eq!(naive_recursive(&[]), 0);
+        assert_eq!(memoized_recursive(&[]), 0);
     }
 
     #[test]
     fn single_item() {
         assert_eq!(find_max_nonadjacent_sum(&[5]), 5);
+        assert_eq!(naive_recursive(&[5]), 5);
+        assert_eq!(memoized_recursive(&[5]), 5);
     }
 
     #[test]
     fn two_items() {
         assert_eq!(find_max_nonadjacent_sum(&[5, 2]), 5);
+        assert_eq!(naive_recursive(&[5, 2]), 5);
+        assert_eq!(memoized_recursive(&[5, 2]), 5);
     }
 
     #[test]
     fn three_mid() {
         assert_eq!(find_max_nonadjacent_sum(&[1, 7, 2]), 7);
+        assert_eq!(naive_recursive(&[1, 7, 2]), 7);
+        assert_eq!(memoized_recursive(&[1, 7, 2]), 7);
     }
 
     #[test]
     fn three_normal() {
         assert_eq!(find_max_nonadjacent_sum(&[6, 7, 4]), 10);
+        assert_eq!(naive_recursive(&[6, 7, 4]), 10);
+        assert_eq!(memoized_recursive(&[6, 7, 4]), 10);
     }
 
     #[test]
     fn four_split() {
         assert_eq!(find_max_nonadjacent_sum(&[7, 2, 1, 8]), 15);
+        assert_eq!(naive_recursive(&[7, 2, 1, 8]), 15);
+        assert_eq!(memoized_recursive(&[7, 2, 1, 8]), 15);
     }
 
     #[test]
     fn fifth_huge() {
         // this test case involves us skipping two from the second spot to the fifth
         assert_eq!(find_max_nonadjacent_sum(&[2, 20, 4, 7, 100, 12, 14]), 134);
+        assert_eq!(naive_recursive(&[2, 20, 4, 7, 100, 12, 14]), 134);
+        assert_eq!(memoized_recursive(&[2, 20, 4, 7, 100, 12, 14]), 134);
     }
 
     #[test]
     fn full_size() {
         assert_eq!(
             find_max_nonadjacent_sum(&[5, 1, 2, 7, 13, 44, 100, 99, 2, 200]),
+            355
+        );
+        assert_eq!(naive_recursive(&[5, 1, 2, 7, 13, 44, 100, 99, 2, 200]), 355);
+        assert_eq!(
+            memoized_recursive(&[5, 1, 2, 7, 13, 44, 100, 99, 2, 200]),
             355
         );
     }
@@ -98,6 +156,8 @@ mod tests {
             find_max_nonadjacent_sum(&[1, 10, 2, 3, 20, 4, 5, 30, 1]),
             60
         );
+        assert_eq!(naive_recursive(&[1, 10, 2, 3, 20, 4, 5, 30, 1]), 60);
+        assert_eq!(memoized_recursive(&[1, 10, 2, 3, 20, 4, 5, 30, 1]), 60);
     }
 
     #[test]
@@ -106,12 +166,28 @@ mod tests {
             find_max_nonadjacent_sum(&[2, 4, 6, 8, 12, 14, 16, 18, 20, 22, 24, 26]),
             92
         );
+        assert_eq!(
+            naive_recursive(&[2, 4, 6, 8, 12, 14, 16, 18, 20, 22, 24, 26]),
+            92
+        );
+        assert_eq!(
+            memoized_recursive(&[2, 4, 6, 8, 12, 14, 16, 18, 20, 22, 24, 26]),
+            92
+        );
     }
 
     #[test]
     fn descending() {
         assert_eq!(
             find_max_nonadjacent_sum(&[15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]),
+            64
+        );
+        assert_eq!(
+            naive_recursive(&[15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]),
+            64
+        );
+        assert_eq!(
+            memoized_recursive(&[15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]),
             64
         );
     }
