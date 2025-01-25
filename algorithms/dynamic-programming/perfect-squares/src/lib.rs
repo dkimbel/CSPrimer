@@ -5,8 +5,8 @@ pub fn lowest_num_perfect_squares(n: u32) -> u32 {
     let mut memo: HashMap<u32, u32> = HashMap::new();
 
     fn inner(n: u32, memo: &mut HashMap<u32, u32>) -> u32 {
-        if is_perfect_square(n) {
-            return 1;
+        if n == 0 {
+            return 0;
         } else if let Some(memoized) = memo.get(&n) {
             return *memoized;
         }
@@ -48,10 +48,6 @@ pub fn fewest_perfect_squares_bfs(n: u32) -> Vec<u32> {
     }
 
     panic!("Failed to find perfect squares for {n}");
-}
-
-fn is_perfect_square(n: u32) -> bool {
-    n.isqrt().pow(2) == n
 }
 
 fn get_perfect_squares_smaller_or_eq(n: u32) -> Vec<u32> {
