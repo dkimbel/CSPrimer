@@ -11,10 +11,7 @@ pub fn fewest_perfect_squares_bottom_up(n: u32) -> u32 {
     while x <= n {
         let solution = 1 + get_perfect_squares_smaller_or_eq(x)
             .iter()
-            .map(|m| {
-                memo.get(&(x - *m))
-                    .expect(&format!("Failed to find {} in memo", x - *m))
-            })
+            .map(|m| memo.get(&(x - *m)).unwrap())
             .min()
             .unwrap();
         memo.insert(x, solution);
