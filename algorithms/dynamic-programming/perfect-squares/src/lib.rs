@@ -12,12 +12,9 @@ pub fn fewest_perfect_squares_bottom_up(n: u32) -> Vec<u32> {
             // take shortest list (list containing fewest perfect squares)
             .min_by(|(_, l1), (_, l2)| l1.len().cmp(&l2.len()))
             .unwrap();
-        let solution = {
-            let mut new_solution = prev_solution.clone();
-            new_solution.push(*new_square);
-            new_solution
-        };
-        memo.insert(x, solution);
+        let mut new_solution = prev_solution.clone();
+        new_solution.push(*new_square);
+        memo.insert(x, new_solution);
         x += 1;
     }
 
@@ -42,13 +39,10 @@ pub fn fewest_perfect_squares_top_down(n: u32) -> Vec<u32> {
             .min_by(|(_, l1), (_, l2)| l1.len().cmp(&l2.len()))
             .unwrap();
 
-        let solution = {
-            let mut new_solution = prev_solution.clone();
-            new_solution.push(*new_square);
-            new_solution
-        };
-        memo.insert(n, solution.clone());
-        solution
+        let mut new_solution = prev_solution.clone();
+        new_solution.push(*new_square);
+        memo.insert(n, new_solution.clone());
+        new_solution
     }
 
     inner(n, &mut memo)
