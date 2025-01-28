@@ -24,7 +24,6 @@ pub fn fewest_perfect_squares_bottom_up(n: u32) -> Vec<u32> {
     memo.get(&n).unwrap().clone()
 }
 
-// This works, but it easily fails with a stack overflow.
 pub fn fewest_perfect_squares_top_down(n: u32) -> Vec<u32> {
     let mut memo: HashMap<u32, Vec<u32>> = HashMap::from([(0, vec![])]);
 
