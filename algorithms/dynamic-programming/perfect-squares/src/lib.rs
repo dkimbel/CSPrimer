@@ -9,16 +9,18 @@ pub fn fewest_perfect_squares_bottom_up(n: u32) -> Vec<u32> {
     let mut x = 1;
 
     while x <= n {
-        let solution = get_perfect_squares_smaller_or_eq(x)
+        let lesser_or_equal_squares = get_perfect_squares_smaller_or_eq(x);
+        let (new_square, prev_solution) = lesser_or_equal_squares
             .iter()
-            .map(|m| {
-                let mut solution = vec![*m];
-                solution.extend(memo.get(&(x - *m)).unwrap());
-                solution
-            })
+            .map(|m| (m, memo.get(&(x - *m)).unwrap()))
             // take shortest list (list containing fewest perfect squares)
-            .min_by(|l1, l2| l1.len().cmp(&l2.len()))
+            .min_by(|(_, l1), (_, l2)| l1.len().cmp(&l2.len()))
             .unwrap();
+        let solution = {
+            let mut new_solution = prev_solution.clone();
+            new_solution.push(*new_square);
+            new_solution
+        };
         memo.insert(x, solution);
         x += 1;
     }
