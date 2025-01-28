@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use perfect_squares::{
-    fewest_perfect_squares_bfs, fewest_perfect_squares_bottom_up, lowest_num_perfect_squares,
+    fewest_perfect_squares_bfs, fewest_perfect_squares_bottom_up, fewest_perfect_squares_top_down,
 };
 
 fn benchmark_perfect_squares(c: &mut Criterion) {
@@ -13,8 +13,8 @@ fn benchmark_perfect_squares(c: &mut Criterion) {
     group.bench_function("bfs_23", |b| {
         b.iter(|| fewest_perfect_squares_bfs(black_box(23)))
     });
-    group.bench_function("recursive_23", |b| {
-        b.iter(|| lowest_num_perfect_squares(black_box(23)))
+    group.bench_function("top_down_23", |b| {
+        b.iter(|| fewest_perfect_squares_top_down(black_box(23)))
     });
 
     // Medium input
@@ -24,8 +24,8 @@ fn benchmark_perfect_squares(c: &mut Criterion) {
     group.bench_function("bfs_120", |b| {
         b.iter(|| fewest_perfect_squares_bfs(black_box(120)))
     });
-    group.bench_function("recursive_120", |b| {
-        b.iter(|| lowest_num_perfect_squares(black_box(120)))
+    group.bench_function("top_down_120", |b| {
+        b.iter(|| fewest_perfect_squares_top_down(black_box(120)))
     });
 
     group.bench_function("bottom_up_1111", |b| {
@@ -34,8 +34,8 @@ fn benchmark_perfect_squares(c: &mut Criterion) {
     group.bench_function("bfs_1111", |b| {
         b.iter(|| fewest_perfect_squares_bfs(black_box(1111)))
     });
-    group.bench_function("recursive_1111", |b| {
-        b.iter(|| lowest_num_perfect_squares(black_box(1111)))
+    group.bench_function("top_down_1111", |b| {
+        b.iter(|| fewest_perfect_squares_top_down(black_box(1111)))
     });
 
     // Very large input (skip recursive version)
