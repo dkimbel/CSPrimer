@@ -34,18 +34,16 @@ pub fn fewest_perfect_squares_bottom_up(n: usize) -> Vec<usize> {
     // 'Key' to memo is just index into vec. At index 0, we place
     // an empty vec (there are no perfect squares that sum to 0).
     let mut memo: Vec<Vec<usize>> = vec![vec![]];
-    let mut target: usize = 1;
 
-    while target <= n {
-        let (new_square, prev_solution) = LesserOrEqPerfectSquares::new(target)
-            .map(|new_square| (new_square, &memo[target - new_square]))
+    for target in 1..=n {
+        let (square, prev_solution) = LesserOrEqPerfectSquares::new(target)
+            .map(|square| (square, &memo[target - square]))
             // take shortest list (list containing fewest perfect squares)
             .min_by(|(_, l1), (_, l2)| l1.len().cmp(&l2.len()))
             .unwrap();
         let mut new_solution = prev_solution.clone();
-        new_solution.push(new_square);
+        new_solution.push(square);
         memo.insert(target, new_solution);
-        target += 1;
     }
 
     memo[n].clone()
