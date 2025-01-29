@@ -1,11 +1,11 @@
 use std::collections::{HashSet, VecDeque};
 
-struct PerfectSquaresIterator {
+struct LesserOrEqPerfectSquares {
     current_base: usize,
     max_squared_value: usize,
 }
 
-impl PerfectSquaresIterator {
+impl LesserOrEqPerfectSquares {
     fn new(max_squared_value: usize) -> Self {
         Self {
             current_base: 1,
@@ -16,7 +16,7 @@ impl PerfectSquaresIterator {
 
 // provide perfect squares, one at a time, until the perfect square
 // would have been larger than the target number
-impl Iterator for PerfectSquaresIterator {
+impl Iterator for LesserOrEqPerfectSquares {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -37,7 +37,7 @@ pub fn fewest_perfect_squares_bottom_up(n: usize) -> Vec<usize> {
     let mut target: usize = 1;
 
     while target <= n {
-        let (new_square, prev_solution) = PerfectSquaresIterator::new(target)
+        let (new_square, prev_solution) = LesserOrEqPerfectSquares::new(target)
             .map(|new_square| (new_square, &memo[target - new_square]))
             // take shortest list (list containing fewest perfect squares)
             .min_by(|(_, l1), (_, l2)| l1.len().cmp(&l2.len()))
@@ -61,7 +61,7 @@ pub fn fewest_perfect_squares_top_down(n: usize) -> Vec<usize> {
             return memoized.clone();
         }
 
-        let (new_square, smaller_solution) = PerfectSquaresIterator::new(n)
+        let (new_square, smaller_solution) = LesserOrEqPerfectSquares::new(n)
             .map(|new_square| {
                 let smaller_solution = inner(n - new_square, memo);
                 (new_square, smaller_solution)
@@ -69,7 +69,7 @@ pub fn fewest_perfect_squares_top_down(n: usize) -> Vec<usize> {
             .min_by(|(_, l1), (_, l2)| l1.len().cmp(&l2.len()))
             .unwrap();
 
-        let mut new_solution = smaller_solution.clone();
+        let mut new_solution = smaller_solution;
         new_solution.push(new_square);
         memo.insert(n, new_solution.clone());
         new_solution
@@ -87,7 +87,7 @@ pub fn fewest_perfect_squares_bfs(n: usize) -> Vec<usize> {
     let mut visited: HashSet<usize> = HashSet::from([n]);
 
     while let Some((n, path)) = queue.pop_front() {
-        for square in PerfectSquaresIterator::new(n) {
+        for square in LesserOrEqPerfectSquares::new(n) {
             let new_target = n - square;
             if visited.contains(&new_target) {
                 continue;
