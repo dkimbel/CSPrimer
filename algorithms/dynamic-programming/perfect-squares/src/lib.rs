@@ -1,14 +1,16 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 
-pub fn fewest_perfect_squares_bottom_up(n: u32) -> Vec<u32> {
-    let mut memo: HashMap<u32, Vec<u32>> = HashMap::from([(0, vec![])]);
-    let mut x = 1;
+pub fn fewest_perfect_squares_bottom_up(n: usize) -> Vec<usize> {
+    // 'Key' to memo is just index into vec. At index 0, we place
+    // an empty vec (there are no perfect squares that sum to 0).
+    let mut memo: Vec<Vec<usize>> = vec![vec![]];
+    let mut x: usize = 1;
 
     while x <= n {
         let lesser_or_equal_squares = get_perfect_squares_smaller_or_eq(x);
         let (new_square, prev_solution) = lesser_or_equal_squares
             .iter()
-            .map(|new_square| (new_square, memo.get(&(x - *new_square)).unwrap()))
+            .map(|new_square| (new_square, &memo[x - *new_square]))
             // take shortest list (list containing fewest perfect squares)
             .min_by(|(_, l1), (_, l2)| l1.len().cmp(&l2.len()))
             .unwrap();
@@ -18,28 +20,30 @@ pub fn fewest_perfect_squares_bottom_up(n: u32) -> Vec<u32> {
         x += 1;
     }
 
-    memo.get(&n).unwrap().clone()
+    memo[n].clone()
 }
 
-pub fn fewest_perfect_squares_top_down(n: u32) -> Vec<u32> {
-    let mut memo: HashMap<u32, Vec<u32>> = HashMap::from([(0, vec![])]);
+pub fn fewest_perfect_squares_top_down(n: usize) -> Vec<usize> {
+    // 'Key' to memo is just index into vec. At index 0, we place
+    // an empty vec (there are no perfect squares that sum to 0).
+    let mut memo: Vec<Vec<usize>> = vec![vec![]];
 
-    fn inner(n: u32, memo: &mut HashMap<u32, Vec<u32>>) -> Vec<u32> {
-        if let Some(memoized) = memo.get(&n) {
+    fn inner(n: usize, memo: &mut Vec<Vec<usize>>) -> Vec<usize> {
+        if let Some(memoized) = memo.get(n) {
             return memoized.clone();
         }
 
         let lesser_or_equal_squares = get_perfect_squares_smaller_or_eq(n);
-        let (new_square, prev_solution) = lesser_or_equal_squares
+        let (new_square, smaller_solution) = lesser_or_equal_squares
             .iter()
             .map(|new_square| {
-                let prev_solution = inner(n - *new_square, memo);
-                (new_square, prev_solution)
+                let smaller_solution = inner(n - *new_square, memo);
+                (new_square, smaller_solution)
             })
             .min_by(|(_, l1), (_, l2)| l1.len().cmp(&l2.len()))
             .unwrap();
 
-        let mut new_solution = prev_solution.clone();
+        let mut new_solution = smaller_solution.clone();
         new_solution.push(*new_square);
         memo.insert(n, new_solution.clone());
         new_solution
@@ -48,13 +52,13 @@ pub fn fewest_perfect_squares_top_down(n: u32) -> Vec<u32> {
     inner(n, &mut memo)
 }
 
-pub fn fewest_perfect_squares_bfs(n: u32) -> Vec<u32> {
+pub fn fewest_perfect_squares_bfs(n: usize) -> Vec<usize> {
     if n == 0 {
         return vec![];
     }
 
-    let mut queue: VecDeque<(u32, Vec<u32>)> = VecDeque::from([(n, Vec::new())]);
-    let mut visited: HashSet<u32> = HashSet::from([n]);
+    let mut queue: VecDeque<(usize, Vec<usize>)> = VecDeque::from([(n, Vec::new())]);
+    let mut visited: HashSet<usize> = HashSet::from([n]);
 
     while let Some((n, path)) = queue.pop_front() {
         for square in get_perfect_squares_smaller_or_eq(n) {
@@ -78,9 +82,9 @@ pub fn fewest_perfect_squares_bfs(n: u32) -> Vec<u32> {
     panic!("Failed to find perfect squares for {n}");
 }
 
-fn get_perfect_squares_smaller_or_eq(n: u32) -> Vec<u32> {
-    let mut perfect_square_base: u32 = 1;
-    let mut perfect_squares: Vec<u32> = Vec::new();
+fn get_perfect_squares_smaller_or_eq(n: usize) -> Vec<usize> {
+    let mut perfect_square_base: usize = 1;
+    let mut perfect_squares: Vec<usize> = Vec::new();
 
     loop {
         let perfect_square = perfect_square_base.pow(2);
