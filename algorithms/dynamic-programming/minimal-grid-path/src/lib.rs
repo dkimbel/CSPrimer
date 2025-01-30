@@ -1,5 +1,5 @@
 use std::cmp;
-use std::collections::HashMap;
+use std::collections::{BinaryHeap, HashMap, HashSet};
 
 type Coords = (usize, usize);
 
@@ -99,6 +99,87 @@ pub fn minimal_cost_top_down(grid: &[&[u32]]) -> Vec<Coords> {
     path
 }
 
+struct SearchParams {
+    cost_so_far: u32,
+    path: Vec<Coords>,
+}
+
+impl PartialEq for SearchParams {
+    fn eq(&self, other: &Self) -> bool {
+        self.cost_so_far == other.cost_so_far
+    }
+}
+
+impl Eq for SearchParams {} // reuse PartialEq
+
+impl PartialOrd for SearchParams {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(&other)) // reuse Ord
+    }
+}
+
+impl Ord for SearchParams {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        // Note how order of self and other is flipped! This way, the higher
+        // cost is "lower" according to ord... such that higher-cost paths
+        // will be lower-priority in our binary heap during search.
+        other.cost_so_far.cmp(&self.cost_so_far)
+    }
+}
+
+// Where "ucs" means "Uniform Cost Search"
+fn minimal_cost_ucs(grid: &[&[u32]]) -> Vec<Coords> {
+    let mut visited: HashSet<Coords> = HashSet::new();
+    let max_x = grid[0].len() - 1;
+    let max_y = grid.len() - 1;
+    let target_coords = (max_x, max_y);
+
+    let mut priority_queue: BinaryHeap<SearchParams> = BinaryHeap::from([SearchParams {
+        cost_so_far: grid[0][0],
+        path: vec![],
+    }]);
+
+    while let Some(SearchParams { cost_so_far, path }) = priority_queue.pop() {
+        let visiting = path.last().unwrap();
+        let (x, y) = *visiting;
+
+        if visited.contains(&(x, y)) {
+            continue;
+        }
+
+        let mut path = path.clone();
+        path.push((x, y));
+
+        if (x, y) == target_coords {
+            return path;
+        }
+
+        // explore space to the right
+        if x < max_x {
+            let mut path = path.clone();
+            path.push((x + 1, y));
+            priority_queue.push(SearchParams {
+                cost_so_far: cost_so_far + grid[y][x + 1],
+                path,
+            })
+        }
+
+        // explore space down
+        if y < max_y {
+            let mut path = path.clone();
+            path.push((x, y + 1));
+            priority_queue.push(SearchParams {
+                cost_so_far: cost_so_far + grid[y + 1][x],
+                path,
+            })
+        }
+
+        visited.insert((x, y));
+    }
+
+    panic!("Failed to reach target coords!");
+}
+
 fn get_adjacent_coords((from_x, from_y): Coords, grid: &[&[u32]]) -> Vec<Coords> {
     let mut adjacent_coords = Vec::new();
     let max_y_exclusive = grid.len();
@@ -140,6 +221,7 @@ mod tests {
         ];
         assert_eq!(minimal_cost_top_down(test_grid), expected_solution);
         assert_eq!(minimal_cost_bottom_up(test_grid), expected_solution);
+        assert_eq!(minimal_cost_ucs(test_grid), expected_solution);
     }
 
     #[test]
@@ -171,5 +253,6 @@ mod tests {
         ];
         assert_eq!(minimal_cost_top_down(test_grid), expected_solution);
         assert_eq!(minimal_cost_bottom_up(test_grid), expected_solution);
+        assert_eq!(minimal_cost_ucs(test_grid), expected_solution);
     }
 }
