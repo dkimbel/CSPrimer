@@ -128,7 +128,7 @@ impl Ord for SearchParams {
 }
 
 // Where "ucs" means "Uniform Cost Search"
-fn minimal_cost_ucs(grid: &[&[u32]]) -> Vec<Coords> {
+pub fn minimal_cost_ucs(grid: &[&[u32]]) -> Vec<Coords> {
     let mut visited: HashSet<Coords> = HashSet::new();
     let max_x = grid[0].len() - 1;
     let max_y = grid.len() - 1;
@@ -136,7 +136,7 @@ fn minimal_cost_ucs(grid: &[&[u32]]) -> Vec<Coords> {
 
     let mut priority_queue: BinaryHeap<SearchParams> = BinaryHeap::from([SearchParams {
         cost_so_far: grid[0][0],
-        path: vec![],
+        path: vec![(0, 0)],
     }]);
 
     while let Some(SearchParams { cost_so_far, path }) = priority_queue.pop() {
@@ -145,12 +145,7 @@ fn minimal_cost_ucs(grid: &[&[u32]]) -> Vec<Coords> {
 
         if visited.contains(&(x, y)) {
             continue;
-        }
-
-        let mut path = path.clone();
-        path.push((x, y));
-
-        if (x, y) == target_coords {
+        } else if (x, y) == target_coords {
             return path;
         }
 
