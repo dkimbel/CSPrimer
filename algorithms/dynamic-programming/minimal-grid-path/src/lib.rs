@@ -7,7 +7,8 @@ pub fn minimal_cost_bottom_up(grid: &[&[u32]]) -> Vec<Coords> {
     // optimal (lowest-cost) path. They're adjacent to the coords in the key for
     // that entry. This lets us reconstruct our path at the end, without having lots
     // of heap-allocated path vecs (one for each visited coord).
-    let mut memo: HashMap<Coords, (u32, Option<Coords>)> = HashMap::new();
+    let mut memo: Vec<Vec<(u32, Option<Coords>)>> =
+        vec![vec![(0, None); grid[0].len()]; grid.len()];
 
     let max_x = grid[0].len() - 1;
     let max_y = grid.len() - 1;
@@ -23,24 +24,24 @@ pub fn minimal_cost_bottom_up(grid: &[&[u32]]) -> Vec<Coords> {
                 match (maybe_coords_to_left, maybe_coords_above) {
                     (None, None) => (0, None),
                     (Some((right_x, right_y)), Some((down_x, down_y))) => {
-                        let (right_cost, _) = memo.get(&(right_x, right_y)).unwrap();
-                        let (down_cost, _) = memo.get(&(down_x, down_y)).unwrap();
+                        let (right_cost, _) = memo[right_y][right_x];
+                        let (down_cost, _) = memo[down_y][down_x];
                         if right_cost < down_cost {
-                            (*right_cost, Some((right_x, right_y)))
+                            (right_cost, Some((right_x, right_y)))
                         } else {
-                            (*down_cost, Some((down_x, down_y)))
+                            (down_cost, Some((down_x, down_y)))
                         }
                     }
                     (Some((right_x, right_y)), None) => {
-                        let (right_cost, _) = memo.get(&(right_x, right_y)).unwrap();
-                        (*right_cost, Some((right_x, right_y)))
+                        let (right_cost, _) = memo[right_y][right_x];
+                        (right_cost, Some((right_x, right_y)))
                     }
                     (None, Some((down_x, down_y))) => {
-                        let (down_cost, _) = memo.get(&(down_x, down_y)).unwrap();
-                        (*down_cost, Some((down_x, down_y)))
+                        let (down_cost, _) = memo[down_y][down_x];
+                        (down_cost, Some((down_x, down_y)))
                     }
                 };
-            memo.insert((x, y), (min_prev_cost + self_cost, maybe_prev_coords));
+            memo[y][x] = (min_prev_cost + self_cost, maybe_prev_coords);
         }
     }
 
@@ -48,9 +49,9 @@ pub fn minimal_cost_bottom_up(grid: &[&[u32]]) -> Vec<Coords> {
     let mut path = vec![(max_x, max_y)];
     let mut backtracking_coords = (max_x, max_y);
 
-    while let Some((_, Some(prev_coords))) = memo.get(&backtracking_coords) {
-        backtracking_coords = *prev_coords;
-        path.push(backtracking_coords);
+    while let (_, Some(prev_coords)) = memo[backtracking_coords.1][backtracking_coords.0] {
+        path.push(prev_coords);
+        backtracking_coords = prev_coords;
     }
     path.reverse();
     path
