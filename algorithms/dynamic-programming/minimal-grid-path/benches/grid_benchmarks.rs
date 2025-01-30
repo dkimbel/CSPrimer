@@ -1,5 +1,5 @@
 // As usual, credit to Claude Sonnet for writing the benchmarks
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use minimal_grid_path::{minimal_cost_bottom_up, minimal_cost_top_down, minimal_cost_ucs};
 
 fn create_test_grid(size: usize) -> Vec<Vec<u32>> {
