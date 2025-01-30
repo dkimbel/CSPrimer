@@ -18,7 +18,7 @@ pub fn minimal_cost_bottom_up(grid: &[&[u32]]) -> Vec<Coords> {
     loop {
         // When combined with lower_left_x and lower_left_y, 'offset' will give us the
         // next coords in the "/"-shaped slice of the grid we're currently evaluating.
-        for offset in 0..=cmp::min(max_x - lower_left_x, max_y - lower_left_y) {
+        for offset in 0..=cmp::min(max_x - lower_left_x, lower_left_y) {
             let (x, y) = (lower_left_x + offset, lower_left_y - offset);
             let self_cost = grid[y][x];
 
@@ -48,6 +48,7 @@ pub fn minimal_cost_bottom_up(grid: &[&[u32]]) -> Vec<Coords> {
             let mut self_path = min_next_path;
             self_path.push((x, y));
             if (x, y) == (0, 0) {
+                self_path.reverse(); // path was built back-to-front, must be reversed
                 return self_path;
             }
             memo.insert((x, y), (self_cost + min_next_cost, self_path));
