@@ -58,15 +58,19 @@ pub fn minimal_cost_bottom_up(grid: &[&[u32]]) -> Vec<Coords> {
 }
 
 pub fn minimal_cost_top_down(grid: &[&[u32]]) -> Vec<Coords> {
-    let mut memo: HashMap<Coords, (u32, Vec<Coords>)> = HashMap::new();
+    // The Coords in our memo are pointing forward to the next coords along
+    // our optimal path. They let us reconstruct the path at the end.
+    let mut memo: HashMap<Coords, (u32, Coords)> = HashMap::new();
 
+    // Return the cost from the current coords to the end, along with the current
+    // coords we just evaluated.
     fn inner(
         (x, y): Coords,
         grid: &[&[u32]],
-        memo: &mut HashMap<Coords, (u32, Vec<Coords>)>,
-    ) -> (u32, Vec<Coords>) {
-        if let Some((cost, path)) = memo.get(&(x, y)) {
-            return (*cost, path.clone());
+        memo: &mut HashMap<Coords, (u32, Coords)>,
+    ) -> (u32, Coords) {
+        if let Some((cost, _)) = memo.get(&(x, y)) {
+            return (*cost, (x, y));
         }
 
         let coords_cost = grid[y][x];
@@ -74,23 +78,27 @@ pub fn minimal_cost_top_down(grid: &[&[u32]]) -> Vec<Coords> {
 
         if adjacent_coords.is_empty() {
             // Base case! We've reached the lower right-hand corner.
-            return (coords_cost, vec![(x, y)]);
+            return (coords_cost, (x, y));
         }
 
-        let (smaller_solution_cost, smaller_solution_path) = adjacent_coords
+        let (smaller_solution_cost, smaller_solution_coords) = adjacent_coords
             .iter()
             .map(|adj_coords| inner(*adj_coords, grid, memo))
             .min_by(|(cost1, _), (cost2, _)| cost1.cmp(cost2))
             .unwrap();
         let new_solution_cost = smaller_solution_cost + coords_cost;
-        let mut new_solution_path = smaller_solution_path;
-        new_solution_path.push((x, y));
-        memo.insert((x, y), (new_solution_cost, new_solution_path.clone()));
-        (new_solution_cost, new_solution_path)
+        memo.insert((x, y), (new_solution_cost, smaller_solution_coords));
+        (new_solution_cost, (x, y))
     }
 
-    let (_cost, mut path) = inner((0, 0), grid, &mut memo);
-    path.reverse(); // path started from end, then had earlier coords pushed to it
+    inner((0, 0), grid, &mut memo);
+    // reconstruct path
+    let mut current_path_coords = (0, 0);
+    let mut path = vec![current_path_coords];
+    while let Some((_, next_path_coords)) = memo.get(&current_path_coords) {
+        path.push(*next_path_coords);
+        current_path_coords = *next_path_coords;
+    }
     path
 }
 
