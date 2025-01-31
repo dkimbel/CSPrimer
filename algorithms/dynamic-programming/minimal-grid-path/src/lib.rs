@@ -104,7 +104,8 @@ pub fn minimal_cost_top_down(grid: &[&[u32]]) -> Vec<Coords> {
 
 struct SearchParams {
     cost_so_far: u32,
-    path: Vec<Coords>,
+    visiting_from: Option<Coords>,
+    visiting: Coords,
 }
 
 impl PartialEq for SearchParams {
@@ -132,50 +133,67 @@ impl Ord for SearchParams {
 
 // Where "ucs" means "Uniform Cost Search"
 pub fn minimal_cost_ucs(grid: &[&[u32]]) -> Vec<Coords> {
-    let mut visited: HashSet<Coords> = HashSet::new();
+    // Used to reconstruct path at end; if we want to know where we visited (2, 1) from, we'd
+    // call visited_from[1][2] (y indexed before x) and find something like Some((1, 1)).
+    // Based on our logic, we'll never add visited_from[0][0]; that's fine, though. We can only
+    // move down and to the right anyway; we'll never try to revisit (0, 0).
+    let mut visited_from: Vec<Vec<Option<Coords>>> = vec![vec![None; grid[0].len()]; grid.len()];
     let max_x = grid[0].len() - 1;
     let max_y = grid.len() - 1;
     let target_coords = (max_x, max_y);
 
     let mut priority_queue: BinaryHeap<SearchParams> = BinaryHeap::from([SearchParams {
         cost_so_far: grid[0][0],
-        path: vec![(0, 0)],
+        visiting_from: None,
+        visiting: (0, 0),
     }]);
 
-    while let Some(SearchParams { cost_so_far, path }) = priority_queue.pop() {
-        let visiting = path.last().unwrap();
-        let (x, y) = *visiting;
+    while let Some(SearchParams {
+        cost_so_far,
+        visiting_from,
+        visiting,
+    }) = priority_queue.pop()
+    {
+        let (x, y) = visiting;
 
-        if visited.contains(&(x, y)) {
+        if visited_from[y][x].is_some() {
+            // we've already visited these coords
             continue;
-        } else if (x, y) == target_coords {
-            return path;
+        }
+        visited_from[y][x] = visiting_from;
+        if (x, y) == target_coords {
+            break;
         }
 
         // explore space to the right
         if x < max_x {
-            let mut path = path.clone();
-            path.push((x + 1, y));
             priority_queue.push(SearchParams {
                 cost_so_far: cost_so_far + grid[y][x + 1],
-                path,
+                visiting_from: Some(visiting),
+                visiting: (x + 1, y),
             })
         }
 
         // explore space down
         if y < max_y {
-            let mut path = path.clone();
-            path.push((x, y + 1));
             priority_queue.push(SearchParams {
                 cost_so_far: cost_so_far + grid[y + 1][x],
-                path,
+                visiting_from: Some(visiting),
+                visiting: (x, y + 1),
             })
         }
-
-        visited.insert((x, y));
     }
 
-    panic!("Failed to reach target coords!");
+    // reconstruct path (starting from end)
+    let mut current_path_coords = target_coords;
+    let mut path = vec![current_path_coords];
+    while let Some(visited_from_coords) = visited_from[current_path_coords.1][current_path_coords.0]
+    {
+        path.push(visited_from_coords);
+        current_path_coords = visited_from_coords;
+    }
+    path.reverse();
+    path
 }
 
 fn get_adjacent_coords((from_x, from_y): Coords, grid: &[&[u32]]) -> Vec<Coords> {
