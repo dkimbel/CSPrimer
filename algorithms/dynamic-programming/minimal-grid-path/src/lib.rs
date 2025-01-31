@@ -14,11 +14,11 @@ pub fn minimal_cost_bottom_up(grid: &[&[u32]]) -> Vec<Coords> {
     let mut memo: Vec<Vec<(u32, Option<Coords>)>> =
         vec![vec![(0, None); grid[0].len()]; grid.len()];
 
-    let max_x = grid[0].len() - 1;
-    let max_y = grid.len() - 1;
-
     // We work through the grid by row, starting with the topmost. The same way you
-    // read: top to bottom, left to right.
+    // read: top to bottom, left to right. Where possible, we want to compare the
+    // lowest-cost-so-far path above us and to our left, choosing the minimum each
+    // time. Since it's only legal to move down and to the right, those are the only
+    // places a path could be coming from.
     for (y, row) in grid.iter().enumerate() {
         for (x, self_cost) in row.iter().enumerate() {
             let maybe_coords_to_left = if x > 0 { Some((x - 1, y)) } else { None };
@@ -50,6 +50,8 @@ pub fn minimal_cost_bottom_up(grid: &[&[u32]]) -> Vec<Coords> {
     }
 
     // reconstruct path, working backwards from the end
+    let max_x = grid[0].len() - 1;
+    let max_y = grid.len() - 1;
     let mut backtracking_coords = (max_x, max_y);
     let mut path = vec![backtracking_coords];
 
