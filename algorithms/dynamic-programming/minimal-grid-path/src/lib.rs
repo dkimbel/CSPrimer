@@ -23,22 +23,22 @@ pub fn minimal_cost_bottom_up(grid: &[&[u32]]) -> Vec<Coords> {
             let (min_prev_cost, maybe_prev_coords) =
                 match (maybe_coords_to_left, maybe_coords_above) {
                     (None, None) => (0, None),
-                    (Some((right_x, right_y)), Some((down_x, down_y))) => {
-                        let (right_cost, _) = memo[right_y][right_x];
-                        let (down_cost, _) = memo[down_y][down_x];
-                        if right_cost < down_cost {
-                            (right_cost, Some((right_x, right_y)))
+                    (Some((left_x, left_y)), Some((up_x, up_y))) => {
+                        let (left_cost, _) = memo[left_y][left_x];
+                        let (up_cost, _) = memo[up_y][up_x];
+                        if left_cost < up_cost {
+                            (left_cost, Some((left_x, left_y)))
                         } else {
-                            (down_cost, Some((down_x, down_y)))
+                            (up_cost, Some((up_x, up_y)))
                         }
                     }
-                    (Some((right_x, right_y)), None) => {
-                        let (right_cost, _) = memo[right_y][right_x];
-                        (right_cost, Some((right_x, right_y)))
+                    (Some((left_x, left_y)), None) => {
+                        let (left_cost, _) = memo[left_y][left_x];
+                        (left_cost, Some((left_x, left_y)))
                     }
-                    (None, Some((down_x, down_y))) => {
-                        let (down_cost, _) = memo[down_y][down_x];
-                        (down_cost, Some((down_x, down_y)))
+                    (None, Some((up_x, up_y))) => {
+                        let (up_cost, _) = memo[up_y][up_x];
+                        (up_cost, Some((up_x, up_y)))
                     }
                 };
             memo[y][x] = (min_prev_cost + self_cost, maybe_prev_coords);
@@ -46,8 +46,8 @@ pub fn minimal_cost_bottom_up(grid: &[&[u32]]) -> Vec<Coords> {
     }
 
     // reconstruct path, working backwards from the end
-    let mut path = vec![(max_x, max_y)];
     let mut backtracking_coords = (max_x, max_y);
+    let mut path = vec![backtracking_coords];
 
     while let (_, Some(prev_coords)) = memo[backtracking_coords.1][backtracking_coords.0] {
         path.push(prev_coords);
@@ -136,7 +136,9 @@ pub fn minimal_cost_ucs(grid: &[&[u32]]) -> Vec<Coords> {
     // Used to reconstruct path at end; if we want to know where we visited (2, 1) from, we'd
     // call visited_from[1][2] (y indexed before x) and find something like Some((1, 1)).
     // Based on our logic, we'll never add visited_from[0][0]; that's fine, though. We can only
-    // move down and to the right anyway; we'll never try to revisit (0, 0).
+    // move down and to the right anyway; we'll never try to revisit (0, 0). If we really needed
+    // to fix that, we could have the memo store (cost, Option<Coords>) instead; we'd at least
+    // fill in a cost for (0, 0).
     let mut visited_from: Vec<Vec<Option<Coords>>> = vec![vec![None; grid[0].len()]; grid.len()];
     let max_x = grid[0].len() - 1;
     let max_y = grid.len() - 1;
