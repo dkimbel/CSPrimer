@@ -60,17 +60,17 @@ pub fn minimal_cost_bottom_up(grid: &[&[u32]]) -> Vec<Coords> {
 pub fn minimal_cost_top_down(grid: &[&[u32]]) -> Vec<Coords> {
     // The Coords in our memo are pointing forward to the next coords along
     // our optimal path. They let us reconstruct the path at the end.
-    let mut memo: HashMap<Coords, (u32, Coords)> = HashMap::new();
+    let mut memo: Vec<Vec<Option<(u32, Coords)>>> = vec![vec![None; grid[0].len()]; grid.len()];
 
     // Return the cost from the current coords to the end, along with the current
     // coords we just evaluated.
     fn inner(
         (x, y): Coords,
         grid: &[&[u32]],
-        memo: &mut HashMap<Coords, (u32, Coords)>,
+        memo: &mut Vec<Vec<Option<(u32, Coords)>>>,
     ) -> (u32, Coords) {
-        if let Some((cost, _)) = memo.get(&(x, y)) {
-            return (*cost, (x, y));
+        if let Some((cost, _)) = memo[y][x] {
+            return (cost, (x, y));
         }
 
         let coords_cost = grid[y][x];
@@ -87,7 +87,7 @@ pub fn minimal_cost_top_down(grid: &[&[u32]]) -> Vec<Coords> {
             .min_by(|(cost1, _), (cost2, _)| cost1.cmp(cost2))
             .unwrap();
         let new_solution_cost = smaller_solution_cost + coords_cost;
-        memo.insert((x, y), (new_solution_cost, smaller_solution_coords));
+        memo[y][x] = Some((new_solution_cost, smaller_solution_coords));
         (new_solution_cost, (x, y))
     }
 
@@ -95,9 +95,9 @@ pub fn minimal_cost_top_down(grid: &[&[u32]]) -> Vec<Coords> {
     // reconstruct path
     let mut current_path_coords = (0, 0);
     let mut path = vec![current_path_coords];
-    while let Some((_, next_path_coords)) = memo.get(&current_path_coords) {
-        path.push(*next_path_coords);
-        current_path_coords = *next_path_coords;
+    while let Some((_, next_path_coords)) = memo[current_path_coords.1][current_path_coords.0] {
+        path.push(next_path_coords);
+        current_path_coords = next_path_coords;
     }
     path
 }
