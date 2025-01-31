@@ -16,7 +16,7 @@ fn create_test_grid(size: usize) -> Vec<Vec<u32>> {
 }
 
 fn benchmark_grid_algorithms(c: &mut Criterion) {
-    let size = 100; // Reduced from 500 to 100
+    let size = 100;
     let grid = create_test_grid(size);
 
     // Convert grid to slice of slices format required by functions
