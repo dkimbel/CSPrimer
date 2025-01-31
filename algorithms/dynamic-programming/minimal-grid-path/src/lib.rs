@@ -3,6 +3,10 @@ use std::collections::BinaryHeap;
 type Coords = (usize, usize);
 
 pub fn minimal_cost_bottom_up(grid: &[&[u32]]) -> Vec<Coords> {
+    if grid.is_empty() || grid[0].is_empty() {
+        return vec![];
+    }
+
     // The Coords in our memo's value tell us where we came from when following the
     // optimal (lowest-cost) path. They're adjacent to the coords in the key for
     // that entry. This lets us reconstruct our path at the end, without having lots
@@ -58,6 +62,10 @@ pub fn minimal_cost_bottom_up(grid: &[&[u32]]) -> Vec<Coords> {
 }
 
 pub fn minimal_cost_top_down(grid: &[&[u32]]) -> Vec<Coords> {
+    if grid.is_empty() || grid[0].is_empty() {
+        return vec![];
+    }
+
     // The Coords in our memo are pointing forward to the next coords along
     // our optimal path. They let us reconstruct the path at the end.
     let mut memo: Vec<Vec<Option<(u32, Coords)>>> = vec![vec![None; grid[0].len()]; grid.len()];
@@ -133,6 +141,10 @@ impl Ord for SearchParams {
 
 // Where "ucs" means "Uniform Cost Search"
 pub fn minimal_cost_ucs(grid: &[&[u32]]) -> Vec<Coords> {
+    if grid.is_empty() || grid[0].is_empty() {
+        return vec![];
+    }
+
     // Used to reconstruct path at end; if we want to know where we visited (2, 1) from, we'd
     // call visited_from[1][2] (y indexed before x) and find something like Some((1, 1)).
     // Based on our logic, we'll never add visited_from[0][0]; that's fine, though. We can only
@@ -215,6 +227,33 @@ fn get_adjacent_coords((from_x, from_y): Coords, grid: &[&[u32]]) -> Vec<Coords>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn empty_y() {
+        let test_grid: &[&[u32]] = &[];
+        let expected_solution = vec![];
+        assert_eq!(minimal_cost_top_down(test_grid), expected_solution);
+        assert_eq!(minimal_cost_bottom_up(test_grid), expected_solution);
+        assert_eq!(minimal_cost_ucs(test_grid), expected_solution);
+    }
+
+    #[test]
+    fn empty_x() {
+        let test_grid: &[&[u32]] = &[&[]];
+        let expected_solution = vec![];
+        assert_eq!(minimal_cost_top_down(test_grid), expected_solution);
+        assert_eq!(minimal_cost_bottom_up(test_grid), expected_solution);
+        assert_eq!(minimal_cost_ucs(test_grid), expected_solution);
+    }
+
+    #[test]
+    fn one_by_one() {
+        let test_grid: &[&[u32]] = &[&[5]];
+        let expected_solution = vec![(0, 0)];
+        assert_eq!(minimal_cost_top_down(test_grid), expected_solution);
+        assert_eq!(minimal_cost_bottom_up(test_grid), expected_solution);
+        assert_eq!(minimal_cost_ucs(test_grid), expected_solution);
+    }
 
     #[test]
     fn five_by_five() {
