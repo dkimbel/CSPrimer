@@ -24,24 +24,23 @@ pub fn edit_distance_top_down(from: &str, to: &str) -> usize {
     let mut memo: Vec<Vec<Option<usize>>> = vec![vec![None; to.len() + 1]; from.len() + 1];
 
     fn inner(from: &str, to: &str, memo: &mut Vec<Vec<Option<usize>>>) -> usize {
-        if from.is_empty() {
-            return to.len(); // all insertions
-        } else if to.is_empty() {
-            return from.len(); // all deletions
-        }
-
         if let Some(memoized) = memo[from.len()][to.len()] {
             return memoized;
         }
 
-        if from.chars().next() == to.chars().next() {
-            return edit_distance_recursive(&from[1..], &to[1..]);
-        }
+        let solution = if from.is_empty() {
+            to.len() // all insertions
+        } else if to.is_empty() {
+            from.len() // all deletions
+        } else if from.chars().next() == to.chars().next() {
+            inner(&from[1..], &to[1..], memo)
+        } else {
+            let insert = inner(from, &to[1..], memo);
+            let delete = inner(&from[1..], to, memo);
+            let replace = inner(&from[1..], &to[1..], memo);
+            1 + cmp::min(insert, cmp::min(delete, replace))
+        };
 
-        let insert = 1 + edit_distance_recursive(from, &to[1..]);
-        let delete = 1 + edit_distance_recursive(&from[1..], to);
-        let replace = 1 + edit_distance_recursive(&from[1..], &to[1..]);
-        let solution = cmp::min(insert, cmp::min(delete, replace));
         memo[from.len()][to.len()] = Some(solution);
         solution
     }
