@@ -85,6 +85,34 @@ pub fn edit_distance_bottom_up(from: &str, to: &str) -> usize {
     memo[from.len()][to.len()]
 }
 
+pub fn edit_distance_bottom_up_linear_space(from: &str, to: &str) -> usize {
+    let mut prev_row_memo: Vec<usize> = vec![0; to.len() + 1];
+    let mut curr_row_memo: Vec<usize> = prev_row_memo.clone();
+
+    let from_chars = from.chars().collect::<Vec<char>>();
+    let to_chars = to.chars().collect::<Vec<char>>();
+
+    for from_i in 0..=from_chars.len() {
+        (prev_row_memo, curr_row_memo) = (curr_row_memo, prev_row_memo);
+        for to_i in 0..=to_chars.len() {
+            let cost = if from_i == 0 {
+                to_i
+            } else if to_i == 0 {
+                from_i
+            } else if from_chars[from_i - 1] == to_chars[to_i - 1] {
+                prev_row_memo[to_i - 1]
+            } else {
+                let remove = prev_row_memo[to_i];
+                let insert = curr_row_memo[to_i - 1];
+                let replace = prev_row_memo[to_i - 1];
+                1 + cmp::min(insert, cmp::min(remove, replace))
+            };
+            curr_row_memo[to_i] = cost;
+        }
+    }
+    curr_row_memo[to.len()]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -123,5 +151,20 @@ mod tests {
         assert_eq!(edit_distance_bottom_up("be", ""), 2);
         assert_eq!(edit_distance_bottom_up("intention", "execution"), 5);
         assert_eq!(edit_distance_bottom_up("ready", "tread"), 2);
+    }
+
+    #[test]
+    fn test_bottom_up_linear_space() {
+        assert_eq!(edit_distance_bottom_up_linear_space("horse", "ros"), 3);
+        assert_eq!(edit_distance_bottom_up_linear_space("food", "good"), 1);
+        assert_eq!(edit_distance_bottom_up_linear_space("a", "zaadz"), 4);
+        assert_eq!(edit_distance_bottom_up_linear_space("hi", "hi"), 0);
+        assert_eq!(edit_distance_bottom_up_linear_space("", ""), 0);
+        assert_eq!(edit_distance_bottom_up_linear_space("be", ""), 2);
+        assert_eq!(
+            edit_distance_bottom_up_linear_space("intention", "execution"),
+            5
+        );
+        assert_eq!(edit_distance_bottom_up_linear_space("ready", "tread"), 2);
     }
 }
