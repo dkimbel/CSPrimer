@@ -68,7 +68,11 @@ pub fn edit_distance_bottom_up(from: &str, to: &str) -> usize {
             } else if to_i == 0 {
                 from_i
             } else if from[(from_i - 1)..from_i] == to[(to_i - 1)..to_i] {
-                // effectively a zero-cost 'replace'
+                // This is a slight variation from the classic Wagner-Fischer algorithm -- they
+                // don't treat this as a separate case, but rather set the 'replacement' cost to
+                // zero in the `min` comparisons below. Possibly there are some wild edge cases
+                // where my change is problematic, but I couldn't think of any reason we would
+                // ever NOT want to make both substrings smaller for free.
                 memo[from_i - 1][to_i - 1]
             } else {
                 let remove = memo[from_i - 1][to_i];
