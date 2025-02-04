@@ -93,10 +93,11 @@ pub fn edit_distance_bottom_up_linear_space(from: &str, to: &str) -> usize {
     for from_i in 0..=from.len() {
         (prev_row_memo, curr_row_memo) = (curr_row_memo, prev_row_memo);
         for to_i in 0..=to.len() {
-            let cost = if from_i == 0 {
+            curr_row_memo[to_i] = if from_i == 0 {
                 to_i
             } else if to_i == 0 {
                 from_i
+            // are we looking at the same character in our 'from' and 'to' words?
             } else if from[(from_i - 1)..from_i] == to[(to_i - 1)..to_i] {
                 prev_row_memo[to_i - 1]
             } else {
@@ -105,7 +106,6 @@ pub fn edit_distance_bottom_up_linear_space(from: &str, to: &str) -> usize {
                 let replace = prev_row_memo[to_i - 1];
                 1 + cmp::min(insert, cmp::min(remove, replace))
             };
-            curr_row_memo[to_i] = cost;
         }
     }
     curr_row_memo[to.len()]

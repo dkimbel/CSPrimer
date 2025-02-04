@@ -1,4 +1,4 @@
-use edit_distance::edit_distance_top_down as edit_distance;
+use edit_distance::edit_distance_bottom_up_linear_space as edit_distance;
 use std::env;
 
 const USAGE: &str = "Usage: edit-distance <from> <to>";
