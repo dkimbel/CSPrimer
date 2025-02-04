@@ -54,9 +54,6 @@ pub fn edit_distance_bottom_up(from: &str, to: &str) -> usize {
     // y coordinate, with the 'to' index being x.
     let mut memo: Vec<Vec<usize>> = vec![vec![0; to.len() + 1]; from.len() + 1];
 
-    let from_chars = from.chars().collect::<Vec<char>>();
-    let to_chars = to.chars().collect::<Vec<char>>();
-
     // If from_i is zero, that means we're considering the first 0 chars from the 'from'
     // word (so it's effectively empty). If from_i is one, we're considering the first char,
     // and so on. The solution to the problem is at from_i == from.len() and to_i == to.len().
@@ -64,13 +61,13 @@ pub fn edit_distance_bottom_up(from: &str, to: &str) -> usize {
     // distance) by comparing the values to the left, above, and above-and-left. Typically we
     // add one to each of those values; the only exception is when the 'to' and 'from' char
     // are identical, where there is no added cost.
-    for from_i in 0..=from_chars.len() {
-        for to_i in 0..=to_chars.len() {
+    for from_i in 0..=from.len() {
+        for to_i in 0..=to.len() {
             let cost = if from_i == 0 {
                 to_i
             } else if to_i == 0 {
                 from_i
-            } else if from_chars[from_i - 1] == to_chars[to_i - 1] {
+            } else if from[(from_i - 1)..from_i] == to[(to_i - 1)..to_i] {
                 // effectively a zero-cost 'replace'
                 memo[from_i - 1][to_i - 1]
             } else {
@@ -89,17 +86,14 @@ pub fn edit_distance_bottom_up_linear_space(from: &str, to: &str) -> usize {
     let mut prev_row_memo: Vec<usize> = vec![0; to.len() + 1];
     let mut curr_row_memo: Vec<usize> = prev_row_memo.clone();
 
-    let from_chars = from.chars().collect::<Vec<char>>();
-    let to_chars = to.chars().collect::<Vec<char>>();
-
-    for from_i in 0..=from_chars.len() {
+    for from_i in 0..=from.len() {
         (prev_row_memo, curr_row_memo) = (curr_row_memo, prev_row_memo);
-        for to_i in 0..=to_chars.len() {
+        for to_i in 0..=to.len() {
             let cost = if from_i == 0 {
                 to_i
             } else if to_i == 0 {
                 from_i
-            } else if from_chars[from_i - 1] == to_chars[to_i - 1] {
+            } else if from[(from_i - 1)..from_i] == to[(to_i - 1)..to_i] {
                 prev_row_memo[to_i - 1]
             } else {
                 let remove = prev_row_memo[to_i];
