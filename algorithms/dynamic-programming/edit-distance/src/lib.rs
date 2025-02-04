@@ -50,12 +50,6 @@ pub fn edit_distance_top_down(from: &str, to: &str) -> usize {
 }
 
 pub fn edit_distance_bottom_up(from: &str, to: &str) -> usize {
-    if from.is_empty() {
-        return to.len(); // all insertions
-    } else if to.is_empty() {
-        return from.len(); // all deletions
-    }
-
     // Our memo is a 2d vec where the "coordinates" are the one-based indexes we're
     // currently checking in the 'from' and 'to' words. The 'from' index acts as the
     // y coordinate, with the 'to' index being x.
@@ -64,14 +58,15 @@ pub fn edit_distance_bottom_up(from: &str, to: &str) -> usize {
     let from_chars = from.chars().collect::<Vec<char>>();
     let to_chars = to.chars().collect::<Vec<char>>();
 
-    for from_i in 1..=from_chars.len() {
-        for to_i in 1..=to_chars.len() {
-            let remaining_from_chars = from.len() - from_i;
-            let remaining_to_chars = to.len() - to_i;
-            let cost = if remaining_from_chars == 0 {
-                remaining_to_chars
-            } else if remaining_to_chars == 0 {
-                remaining_from_chars
+    // If from_i is zero, that means we're considering the first 0 chars from the 'from'
+    // word (so it's effectively empty). If from_i is one, we're considering the first char,
+    // and so on. The solution to the problem is at from_i == from.len() and to_i == to.len().
+    for from_i in 0..=from_chars.len() {
+        for to_i in 0..=to_chars.len() {
+            let cost = if from_i == 0 {
+                to_i
+            } else if to_i == 0 {
+                from_i
             } else {
                 let cost_to_replace = if from_chars[from_i - 1] == to_chars[to_i - 1] {
                     0
