@@ -1,6 +1,6 @@
 use crossterm::terminal::enable_raw_mode;
 use std::io::{self, Read, Write};
-use termios::{tcsetattr, Termios};
+use termios::{tcsetattr, Termios, TCSADRAIN};
 
 const BELL_CHAR: u8 = 0x7;
 
@@ -20,7 +20,7 @@ fn main() {
 
         if buffer[0] == 0x3 {
             // handle ctrl-c (at least on macOS)
-            tcsetattr(0, 0, &terminal_attrs).expect("Failed to restore terminal attrs");
+            tcsetattr(0, TCSADRAIN, &terminal_attrs).expect("Failed to restore terminal attrs");
             std::process::exit(0);
         }
 
