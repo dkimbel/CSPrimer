@@ -25,7 +25,7 @@ fn main() {
         }
 
         if buffer[0].is_ascii_digit() {
-            let num_bells = buffer[0] - b'0';
+            let num_bells = buffer[0] - 0x30;
             let bells = vec![BELL_CHAR; num_bells as usize];
             if let Err(e) = io::stdout()
                 .write_all(&bells)
