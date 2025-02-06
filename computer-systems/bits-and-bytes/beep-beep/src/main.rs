@@ -13,7 +13,7 @@ fn main() {
 
     loop {
         if let Err(e) = io::stdin().read(&mut buffer) {
-            tcsetattr(0, 0, &terminal_attrs).expect("Failed to restore terminal attrs");
+            tcsetattr(0, TCSADRAIN, &terminal_attrs).expect("Failed to restore terminal attrs");
             eprintln!("Failed to read from stdin: {e}");
             std::process::exit(1);
         }
@@ -24,15 +24,14 @@ fn main() {
             std::process::exit(0);
         }
 
-        if let Some(digit) = (buffer[0] as char).to_digit(10) {
-            // macOS is only willing to play five bells at a time; we'll sometimes
-            // try to send as many as nine, but only five will play
-            let bells = vec![BELL_CHAR; digit as usize];
+        if buffer[0].is_ascii_digit() {
+            let num_bells = buffer[0] - b'0';
+            let bells = vec![BELL_CHAR; num_bells as usize];
             if let Err(e) = io::stdout()
                 .write_all(&bells)
                 .and_then(|_| io::stdout().flush())
             {
-                tcsetattr(0, 0, &terminal_attrs).expect("Failed to restore terminal attrs");
+                tcsetattr(0, TCSADRAIN, &terminal_attrs).expect("Failed to restore terminal attrs");
                 eprintln!("Failed to write or flush to stdout: {e}");
                 std::process::exit(1);
             }
